@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "build": "node scripts/build.mjs",
     "test": "node scripts/test-parser.mjs"
   },
   "devDependencies": {
