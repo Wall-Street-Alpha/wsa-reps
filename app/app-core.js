@@ -128,7 +128,7 @@ function countStatus() {
   return out;
 }
 function checkAchievements() {
-  for (const a of ACH) if (!S.profile.ach[a.id] && a.test()) { S.profile.ach[a.id] = Date.now(); App.toast(`unlocked: ${a.name} 🏆`); }
+  for (const a of ACH) if (!S.profile.ach[a.id] && a.test()) { S.profile.ach[a.id] = Date.now(); App.toast(`Achievement unlocked: ${a.name}`); }
 }
 
 function touchStreak() {
@@ -138,7 +138,7 @@ function touchStreak() {
   if (p.lastDay === yesterday) p.streak += 1;
   else if (p.lastDay && p.freezes > 0) {
     const gap = Math.round((new Date(today) - new Date(p.lastDay)) / DAY_MS);
-    if (gap === 2) { p.freezes -= 1; p.streak += 1; App.toast('streak freeze used. streak saved 🧊'); } else p.streak = 1;
+    if (gap === 2) { p.freezes -= 1; p.streak += 1; App.toast('Streak freeze used. Your streak is safe.'); } else p.streak = 1;
   } else p.streak = 1;
   if (p.streak > 0 && p.streak % 7 === 0) p.freezes = Math.min(2, (p.freezes || 0) + 1);
   p.best = Math.max(p.best || 0, p.streak);
@@ -152,7 +152,7 @@ function addXp(n) {
   const d = (S.profile.daily[dayKey()] ||= { xp: 0, n: 0, ms: 0 });
   d.xp += n;
   const after = levelOf(S.profile.xp);
-  if (after > before) App.toast(`level up → ${after}. sheesh.`);
+  if (after > before) App.toast(`Level up! You reached level ${after}.`);
 }
 
 // Record a rating: schedules the card, logs it, awards XP. Returns {xp, next}.
@@ -179,7 +179,7 @@ function rateCard(cardId, rating, { ms = 0, coverage = -1, mode = 'practice', co
   saveStates(card.deck);
   checkAchievements();
   saveProfile();
-  if (first && S.profile.streak > 1) App.toast(`${S.profile.streak}-day streak 🔥`);
+  if (first && S.profile.streak > 1) App.toast(`${S.profile.streak}-day streak`);
   return { xp, next };
 }
 

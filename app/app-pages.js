@@ -30,24 +30,26 @@ Pages.today = el => {
   const dq = dailyQuestion();
   const all = solvedBy(), byD = ['Easy', 'Medium', 'Hard'].map(d => [d, solvedBy(d)]);
   const R = 46, C = 2 * Math.PI * R;
-  const hello = goalPct >= 1 ? 'goal hit. you\'re built different.' : p.streak >= 3 ? `${p.streak}-day streak. don't fumble it.` : queueLen ? "let's lock in." : 'all caught up. touch grass or keep going.';
+  const hr = new Date().getHours();
+  const greet = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+  const hello = goalPct >= 1 ? 'Daily goal complete.' : p.streak >= 3 ? `${p.streak}-day streak. Keep it going.` : queueLen ? 'Ready for today\'s reps.' : 'You\'re all caught up.';
   el.innerHTML = `<div class="page">
-    <div class="hello"><div class="eyebrow">${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div><h1>${nm ? `yo ${h(nm.toLowerCase())}, ` : ''}<span class="grad">${h(hello)}</span></h1></div>
+    <div class="hello"><div class="eyebrow">${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div><h1>${greet}${nm ? `, ${h(nm)}` : ''}. <span class="grad">${h(hello)}</span></h1></div>
     ${Store.mode === 'local' ? `<div class="banner">Progress is saved in this browser only on this copy of the app.</div>` : ''}
     <div class="home">
       <div class="grid" style="gap:18px">
         <div class="card lockin">
-          <div><div class="eyebrow">today's reps</div><h2 style="margin-top:8px">${queueLen ? `${queueLen} card${queueLen === 1 ? '' : 's'} queued` : 'queue cleared'}</h2>
-            <p class="muted" style="margin-top:6px">${queueLen ? `Reviews first, then fresh ones. About ${Math.max(1, Math.round(queueLen * 0.6))} min. No skipping leg day.` : 'Nothing due. Hit the Learn path or run a mock to stay sharp.'}</p></div>
+          <div><div class="eyebrow">today's reps</div><h2 style="margin-top:8px">${queueLen ? `${queueLen} card${queueLen === 1 ? '' : 's'} ready` : 'All caught up'}</h2>
+            <p class="muted" style="margin-top:6px">${queueLen ? `Reviews first, then fresh ones. About ${Math.max(1, Math.round(queueLen * 0.6))} minutes.` : 'Nothing is due. Continue the learning path or run a mock interview.'}</p></div>
           <div class="ticker"><div class="tick"><b>${c.due}</b><span>due now</span></div><div class="tick"><b>${c.newToday}</b><span>new today</span></div><div class="tick"><b>${c.learning}</b><span>learning</span></div></div>
           <div class="row">${queueLen ? `<a class="btn go big" href="#session">Start reps</a>` : `<a class="btn go big" href="#path">Keep learning</a>`}<a class="btn big" href="#mock">Mock interview</a></div>
         </div>
         ${dq ? `<div class="card daily"><div class="cal-ico">${new Date().toLocaleDateString(undefined, { month: 'short' }).toUpperCase()}<b>${new Date().getDate()}</b></div><div style="min-width:0"><div class="eyebrow" style="color:var(--brand)">question of the day</div><a class="dq" href="#p-${dq.id}">${h(dq.q)}</a><div class="row" style="gap:8px;margin-top:4px">${diffText(dq.difficulty)}<span class="faint" style="font-size:.8rem">${h(dq.category)}</span></div></div><a class="btn brand" href="#p-${dq.id}">Solve</a></div>` : ''}
         <div class="grid cols-2">
           <div class="card grid" style="gap:12px;align-content:start"><div class="row spread"><h3>Weak spots</h3><a href="#progress" class="faint" style="font-size:.82rem">see all</a></div>
-            ${weak.length ? weak.map(u => `<div class="grid" style="gap:6px"><div class="row spread"><b style="font-size:.92rem">${h(u.name)}</b><button class="btn sm" data-drill="${h(u.name)}">Drill</button></div><div class="bar"><i style="width:${u.mastery}%;background:${u.mastery < 30 ? 'var(--again)' : u.mastery < 60 ? 'var(--shaky)' : 'var(--go)'}"></i></div><span class="faint mono" style="font-size:.74rem">${u.mastery}% mastery</span></div>`).join('') : '<p class="muted">Do a few reps and your weakest topics show up here.</p>'}
+            ${weak.length ? weak.map(u => `<div class="grid" style="gap:6px"><div class="row spread"><b style="font-size:.92rem">${h(u.name)}</b><button class="btn sm" data-drill="${h(u.name)}">Drill</button></div><div class="bar"><i style="width:${u.mastery}%;background:${u.mastery < 30 ? 'var(--again)' : u.mastery < 60 ? 'var(--shaky)' : 'var(--go)'}"></i></div><span class="faint mono" style="font-size:.74rem">${u.mastery}% mastery</span></div>`).join('') : '<p class="muted">Review a few cards and your weakest topics will show here.</p>'}
           </div>
-          <div class="card grid" style="gap:12px;align-content:start"><div class="row spread"><h3>Grind map</h3><span class="faint mono" style="font-size:.76rem">${totalReviews()} reps total</span></div>${heatmap(12)}</div>
+          <div class="card grid" style="gap:12px;align-content:start"><div class="row spread"><h3>Activity</h3><span class="faint mono" style="font-size:.76rem">${totalReviews()} reviews</span></div>${heatmap(12)}</div>
         </div>
       </div>
       <div class="grid" style="gap:18px">
@@ -91,9 +93,9 @@ function heatmap(weeks) {
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const n = counts[dayKey(d.getTime())] || 0;
     const l = n === 0 ? '' : n < 5 ? 'l1' : n < 15 ? 'l2' : n < 30 ? 'l3' : 'l4';
-    cells += `<i class="${l}" title="${dayKey(d.getTime())}: ${n} rep${n === 1 ? '' : 's'}"></i>`;
+    cells += `<i class="${l}" title="${dayKey(d.getTime())}: ${n} review${n === 1 ? '' : 's'}"></i>`;
   }
-  return `<div class="heat" role="img" aria-label="Reps per day">${cells}</div>`;
+  return `<div class="heat" role="img" aria-label="Reviews per day">${cells}</div>`;
 }
 
 Pages.path = el => {
@@ -112,11 +114,11 @@ Pages.path = el => {
       if (st === 'todo' && !current) { current = `${ui}-${li}`; st = 'current'; }
       const x = Math.round(Math.sin(idx++ * 0.9) * 70);
       const icon = st === 'crown' ? I.crown : st === 'done' ? I.check : st === 'current' ? I.star : `<span>${li + 1}</span>`;
-      return `<button class="node ${st}" style="--x:${x}px;--c:${c1};--cs:${c2}" data-unit="${ui}" data-lesson="${li}" aria-label="${h(u.name)} lesson ${li + 1}">${icon}</button><div class="node-label" style="--x:${x}px">lesson ${li + 1} · ${ls.length} q's</div>`;
+      return `<button class="node ${st}" style="--x:${x}px;--c:${c1};--cs:${c2}" data-unit="${ui}" data-lesson="${li}" aria-label="${h(u.name)} lesson ${li + 1}">${icon}</button><div class="node-label" style="--x:${x}px">Lesson ${li + 1} · ${ls.length} questions</div>`;
     }).join('');
     return `<section class="unit"><div class="unit-head" style="background:${c1}"><div><div class="sub">Unit ${ui + 1} · ${h(u.track)}</div><h2>${h(u.name)}</h2></div><div class="row"><span class="sub">${u.mastery}%</span><button class="btn sm" style="background:rgba(255,255,255,.2);color:#fff;border-color:rgba(0,0,0,.15)" data-drill="${h(u.name)}">Practice</button></div></div><div class="trail">${nodes}</div></section>`;
   };
-  el.innerHTML = `<div class="page" style="max-width:620px"><div class="hello"><div class="eyebrow">learn</div><h1>fit first, <span class="grad">technicals next.</span></h1><p class="muted">Each unit is a topic, each bubble is 8 questions. Clear it for a check, master it for a crown.</p></div>
+  el.innerHTML = `<div class="page" style="max-width:620px"><div class="hello"><div class="eyebrow">learn</div><h1>Learning path</h1><p class="muted">Fit questions first, then technicals. Each unit is a topic and each lesson is 8 questions. Complete a lesson for a check mark; master it for a crown.</p></div>
     ${all.length ? all.map(unitHtml).join('') : `<div class="card empty"><h2>No questions yet</h2><a class="btn go" href="#import">Import a question bank</a></div>`}</div>`;
   el.querySelectorAll('.node').forEach(b => b.onclick = () => {
     const u = all[+b.dataset.unit], ls = u.lessons[+b.dataset.lesson];
@@ -195,9 +197,9 @@ Pages.problem = (el, id) => {
         <div class="pane-body" data-p="desc" ${WS_TAB === 'desc' ? '' : 'hidden'}><div class="row spread" style="align-items:flex-start"><div class="q-title">${i + 1}. ${h(card.q)}</div><button class="star ${S.star[id] ? 'on' : ''}" id="ws-star" aria-label="Star">${S.star[id] ? I.star : I.starO}</button></div>
           <div class="row" style="gap:6px">${diffPill(card.difficulty)}<span class="pill">${h(card.category)}</span><span class="pill">${h(deckName(card.deck))}</span></div>
           <div class="grid cols-3" style="gap:8px"><div class="tick"><b style="font-size:1.1rem">${acc == null ? '–' : acc + '%'}</b><span>acceptance</span></div><div class="tick"><b style="font-size:1.1rem">${SRS.mastery(S.st[id])}%</b><span>mastery</span></div><div class="tick"><b style="font-size:1.1rem">${attempts.length}</b><span>attempts</span></div></div>
-          <p class="faint" style="font-size:.86rem">Answer out loud in the editor like you're across the table from an MD. Run checks which key concepts you hit. Submit shows the model answer and schedules your next rep.</p></div>
+          <p class="faint" style="font-size:.86rem">Answer in the editor as you would in the interview. Run checks which key concepts you covered. Submit shows the model answer and schedules your next review.</p></div>
         <div class="pane-body" data-p="notes" ${WS_TAB === 'notes' ? '' : 'hidden'}><label class="field" for="ws-notes">My notes <span class="faint" style="font-weight:500">saved to your account</span></label><textarea class="input" id="ws-notes" style="min-height:220px" placeholder="Your own framing, a story to use, a number to remember.">${h(S.notes[id] || '')}</textarea></div>
-        <div class="pane-body" data-p="subs" ${WS_TAB === 'subs' ? '' : 'hidden'}>${attempts.length ? `<table class="tbl"><thead><tr><th>Result</th><th>Concepts</th><th>Time</th><th>When</th></tr></thead><tbody>${attempts.map(e => `<tr><td style="font-weight:800;color:var(--${['', 'again', 'shaky', 'gotit', 'ez'][e[2]]})">${e[2] >= 3 ? 'Accepted' : 'Wrong Answer'} <span class="faint" style="font-weight:600">(${RATE_LABELS[e[2]]})</span></td><td class="mono faint">${e[4] >= 0 ? e[4] + '%' : 'peeked'}</td><td class="mono faint">${Math.round(e[3] / 1000)}s</td><td class="mono faint">${new Date(e[0]).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">No submissions yet. First one is always the hardest.</p>'}</div>
+        <div class="pane-body" data-p="subs" ${WS_TAB === 'subs' ? '' : 'hidden'}>${attempts.length ? `<table class="tbl"><thead><tr><th>Result</th><th>Concepts</th><th>Time</th><th>When</th></tr></thead><tbody>${attempts.map(e => `<tr><td style="font-weight:800;color:var(--${['', 'again', 'shaky', 'gotit', 'ez'][e[2]]})">${e[2] >= 3 ? 'Accepted' : 'Wrong Answer'} <span class="faint" style="font-weight:600">(${RATE_LABELS[e[2]]})</span></td><td class="mono faint">${e[4] >= 0 ? e[4] + '%' : 'peeked'}</td><td class="mono faint">${Math.round(e[3] / 1000)}s</td><td class="mono faint">${new Date(e[0]).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">No submissions yet.</p>'}</div>
       </div>
       <div id="ws-flow"></div>
     </div></div>`;
@@ -207,9 +209,9 @@ Pages.problem = (el, id) => {
   cardFlow($('#ws-flow', el), id, {
     mode: 'practice', layout: 'ws',
     onRated: (r, out) => {
-      App.toast(`+${out.xp} XP · next rep in ${SRS.formatInterval(out.next.due - Date.now())}`);
+      App.toast(`+${out.xp} XP · next review in ${SRS.formatInterval(out.next.due - Date.now())}`);
       const due = buildDailyQueue(5).find(x => x !== id);
-      $('#ws-flow', el).innerHTML = `<div class="console"><div class="console-body empty"><div class="verdict ${r >= 3 ? 'ac' : 'wa'}">${r >= 3 ? 'Saved. W.' : 'Saved. It comes back soon.'}</div><p class="muted">Next rep of this one in ${SRS.formatInterval(out.next.due - Date.now())}.</p><div class="row" style="justify-content:center">${due ? `<a class="btn go" href="#p-${due}">Next due</a>` : ''}<a class="btn" href="#p-${list[Math.min(list.length - 1, i + 1)].id}">Next problem</a></div></div></div>`;
+      $('#ws-flow', el).innerHTML = `<div class="console"><div class="console-body empty"><div class="verdict ${r >= 3 ? 'ac' : 'wa'}">${r >= 3 ? 'Saved.' : 'Saved. This one will come back soon.'}</div><p class="muted">Next review in ${SRS.formatInterval(out.next.due - Date.now())}.</p><div class="row" style="justify-content:center">${due ? `<a class="btn go" href="#p-${due}">Next due</a>` : ''}<a class="btn" href="#p-${list[Math.min(list.length - 1, i + 1)].id}">Next problem</a></div></div></div>`;
     },
   });
 };
@@ -225,14 +227,14 @@ function startSession({ mode, ids, title }) {
 Pages.session = el => {
   if (!SESSION) {
     const ids = buildDailyQueue();
-    if (!ids.length) { el.innerHTML = `<div class="page" style="max-width:720px"><div class="card empty"><h2>queue cleared.</h2><p class="muted">Nothing due and today's new cards are done.</p><div class="row"><a class="btn go" href="#path">Keep learning</a><a class="btn" href="#mock">Mock interview</a></div></div></div>`; return; }
+    if (!ids.length) { el.innerHTML = `<div class="page" style="max-width:720px"><div class="card empty"><h2>All caught up</h2><p class="muted">Nothing is due and today's new cards are done.</p><div class="row"><a class="btn go" href="#path">Keep learning</a><a class="btn" href="#mock">Mock interview</a></div></div></div>`; return; }
     SESSION = { mode: 'daily', title: "Today's reps", queue: ids, total: ids.length, done: 0, xp: 0, good: 0, rated: 0, combo: 0, bestCombo: 0, started: Date.now(), streakBefore: S.profile.streak };
   }
   const ss = SESSION;
   if (!ss.queue.length) return sessionDone(el);
   const pct = Math.round(100 * ss.done / ss.total);
   el.innerHTML = `<div class="page" style="max-width:760px">
-    <div class="session-top"><a class="icon-btn" href="#today" id="quit" aria-label="End session">${I.x}</a><div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div><span class="combo">${ss.combo >= 2 ? ss.combo + 'x 🔥' : ''}</span></div>
+    <div class="session-top"><a class="icon-btn" href="#today" id="quit" aria-label="End session">${I.x}</a><div class="progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div><span class="combo">${ss.combo >= 2 ? ss.combo + 'x combo' : ''}</span></div>
     <div class="row spread"><span class="eyebrow">${h(ss.title)}</span><span class="faint mono" style="font-size:.78rem">${ss.done} done · ${ss.queue.length} left · +${ss.xp} XP</span></div>
     <div class="card" id="flow"></div></div>`;
   $('#quit', el).onclick = e => { e.preventDefault(); if (ss.rated) { finishSessionBonus(); } SESSION = null; location.hash = 'today'; };
@@ -243,7 +245,7 @@ Pages.session = el => {
       ss.queue.shift(); ss.rated++; ss.xp += out.xp;
       if (r >= 3) { ss.good++; ss.combo++; ss.bestCombo = Math.max(ss.bestCombo, ss.combo); } else ss.combo = 0;
       if (r === 1) { ss.queue.splice(Math.min(3, ss.queue.length), 0, id); } else ss.done++;
-      if (ss.combo > 0 && ss.combo % 5 === 0) App.toast(`${ss.combo} in a row. you're on fire. +5 XP`);
+      if (ss.combo > 0 && ss.combo % 5 === 0) App.toast(`${ss.combo} in a row. +5 bonus XP`);
       Pages.session(el);
     },
   });
@@ -259,8 +261,8 @@ function sessionDone(el) {
   SESSION = null;
   el.innerHTML = `<div class="page" style="max-width:640px"><div class="card done-hero">
     <div class="eyebrow">session complete</div><div class="big-num">+${ss.xp} XP</div>
-    <h1>${acc >= 80 ? 'you ate that.' : acc >= 50 ? 'solid reps.' : 'reps are reps. it counts.'}</h1>
-    <p class="muted">${extended ? `streak extended to ${S.profile.streak} day${S.profile.streak === 1 ? '' : 's'} 🔥` : `${S.profile.streak}-day streak, still alive.`}</p>
+    <h1>${acc >= 80 ? 'Excellent session.' : acc >= 50 ? 'Solid session.' : 'Session complete.'}</h1>
+    <p class="muted">${extended ? `Streak extended to ${S.profile.streak} day${S.profile.streak === 1 ? '' : 's'}.` : `${S.profile.streak}-day streak.`}</p>
     <div class="ticker" style="width:100%"><div class="tick"><b>${acc}%</b><span>accuracy</span></div><div class="tick"><b>${ss.done}</b><span>cards</span></div><div class="tick"><b>${mins}m</b><span>time</span></div></div>
     <div class="row" style="justify-content:center"><button class="btn go big" id="more">Keep going</button><a class="btn big" href="#today">Done</a></div></div></div>`;
   $('#more', el).onclick = () => { const ids = buildDailyQueue(); if (ids.length) startSession({ mode: 'daily', ids, title: "Today's reps" }); else location.hash = 'path'; };

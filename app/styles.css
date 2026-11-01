@@ -235,7 +235,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: .9rem; }
 
 /* Rating + Duolingo feedback sheet */
 .rates { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.rate { --c: var(--again); --cs: var(--again-shadow); border-radius: 14px; border: 0; background: var(--c); color: #fff; padding: 10px 4px 8px; display: grid; gap: 1px; justify-items: center; font-weight: 800; box-shadow: 0 4px 0 var(--cs); text-transform: lowercase; font-size: .95rem; }
+.rate { --c: var(--again); --cs: var(--again-shadow); border-radius: 14px; border: 0; background: var(--c); color: #fff; padding: 10px 4px 8px; display: grid; gap: 1px; justify-items: center; font-weight: 800; box-shadow: 0 4px 0 var(--cs); font-size: .95rem; }
 .rate:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--cs); }
 .rate small { font-family: var(--font-mono); font-weight: 700; opacity: .85; font-size: .72rem; }
 .rate kbd { font-family: var(--font-mono); font-size: .6rem; opacity: .7; }

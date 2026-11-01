@@ -3,7 +3,7 @@ let MOCK = null;
 Pages.mock = el => {
   if (MOCK && MOCK.phase === 'run') return mockRun(el);
   if (MOCK && MOCK.phase === 'review') return mockReview(el);
-  el.innerHTML = `<div class="page" style="max-width:720px"><div class="hello"><div class="eyebrow">superday simulator</div><h1>mock interview. <span class="grad">no hints, no peeking.</span></h1><p class="muted">Questions back to back, two-minute clock each, read out loud. Answers only show at the end, then each one gets scheduled.</p></div>
+  el.innerHTML = `<div class="page" style="max-width:720px"><div class="hello"><div class="eyebrow">superday simulator</div><h1>Mock interview</h1><p class="muted">Questions back to back with a two-minute clock each, read aloud. Answers appear at the end, and each question is then scheduled for review.</p></div>
     <div class="card grid" style="gap:16px">
       <label class="field" for="m-track">Track<select class="input" id="m-track"><option value="Mixed">Mixed</option><option value="Behavioral">Behavioral / fit</option><option value="Technical">Technical</option></select></label>
       <label class="field" for="m-count">Questions<select class="input" id="m-count"><option>5</option><option>8</option><option>12</option></select></label>
@@ -51,7 +51,7 @@ function mockReview(el) {
     const covs = m.ids.map((id, i) => m.answers[i] ? Scoring.scoreAnswer(m.answers[i], S.byId.get(id).a).coverage : 0);
     const avg = Math.round(covs.reduce((a, b) => a + b, 0) / covs.length);
     MOCK = null;
-    el.innerHTML = `<div class="page" style="max-width:640px"><div class="card done-hero"><div class="eyebrow">mock complete</div><div class="big-num">${avg}%</div><h1>${avg >= 60 ? 'you\'d get the callback.' : avg >= 35 ? 'mid. but fixable.' : 'tough room. run it back.'}</h1><p class="muted">Average concept coverage. Every question is now on your review schedule.</p><div class="row" style="justify-content:center"><a class="btn go" href="#mock">Run another</a><a class="btn" href="#today">Done</a></div></div></div>`;
+    el.innerHTML = `<div class="page" style="max-width:640px"><div class="card done-hero"><div class="eyebrow">mock interview complete</div><div class="big-num">${avg}%</div><h1>${avg >= 60 ? 'Strong performance.' : avg >= 35 ? 'Good foundation. Room to improve.' : 'Keep practicing these.'}</h1><p class="muted">Average concept coverage. Every question is now on your review schedule.</p><div class="row" style="justify-content:center"><a class="btn go" href="#mock">Run another</a><a class="btn" href="#today">Done</a></div></div></div>`;
     confetti();
     return;
   }
@@ -62,7 +62,7 @@ function mockReview(el) {
 // Import
 let IMP = null;
 Pages.import = el => {
-  el.innerHTML = `<div class="page"><div class="hello"><div class="eyebrow">import</div><h1>drop a guide, <span class="grad">get a problem set.</span></h1><p class="muted">PDF, Word, text, CSV or JSON. Questions and answers get pulled out right in your browser; the file never gets uploaded anywhere.</p></div>
+  el.innerHTML = `<div class="page"><div class="hello"><div class="eyebrow">import</div><h1>Import a question bank</h1><p class="muted">PDF, Word, text, CSV or JSON. Questions and answers are extracted in your browser; the file itself is never uploaded.</p></div>
     <div class="tabs" role="tablist"><button role="tab" aria-selected="true" data-tab="file">Upload a file</button><button role="tab" aria-selected="false" data-tab="paste">Paste text</button></div>
     <div id="imp-file"><label class="drop" id="drop" for="imp-input"><b style="font-size:1.05rem">Drop a file here or tap to choose</b><span class="faint">.pdf, .docx, .txt, .md, .csv, .json</span><input id="imp-input" type="file" accept=".pdf,.docx,.txt,.md,.csv,.json" hidden></label></div>
     <div id="imp-paste" hidden class="grid" style="gap:10px"><textarea class="input" id="imp-text" style="min-height:220px" placeholder="Paste questions. Works with numbered lists (1. Question? then the answer), Q: / A: pairs, or questions ending in a question mark."></textarea><button class="btn go" id="imp-parse" style="justify-self:start">Find questions</button></div>
@@ -158,11 +158,11 @@ Pages.progress = el => {
   for (const c of S.cards) { const s = S.st[c.id]; if (!s || s.state === 0) continue; const d = Math.max(0, Math.floor((s.due - now) / DAY_MS)); if (d < 14) fc[d].n++; }
   const us = units();
   const diffs = ['Easy', 'Medium', 'Hard'].map(d => { const cs = S.cards.filter(c => c.difficulty === d); return { d, n: cs.length, m: cs.length ? Math.round(cs.reduce((a, c) => a + SRS.mastery(S.st[c.id]), 0) / cs.length) : 0 }; });
-  el.innerHTML = `<div class="page"><div class="hello"><div class="eyebrow">progress</div><h1>the receipts.</h1><p class="muted" style="margin-top:6px">${Store.mode !== 'local' ? 'Synced to your account. Sign in on any device to pick up where you left off.' : 'Saved in this browser.'}</p></div>
+  el.innerHTML = `<div class="page"><div class="hello"><div class="eyebrow">progress</div><h1>Your progress</h1><p class="muted" style="margin-top:6px">${Store.mode !== 'local' ? 'Synced to your account. Sign in on any device to pick up where you left off.' : 'Saved in this browser.'}</p></div>
     <div class="grid cols-4">
       ${[['Level ' + levelOf(p.xp), p.xp + ' XP'], ['Current streak', p.streak + 'd'], ['Best streak', (p.best || 0) + 'd'], ['Retention (30d)', retention == null ? '–' : retention + '%'], ['Mastered', st.mastered], ['Learning', st.learning], ['New', st.new], ['Study time', studyMin >= 60 ? (studyMin / 60).toFixed(1) + 'h' : studyMin + 'm']].map(([l, v]) => `<div class="card stat"><span>${l}</span><b>${v}</b></div>`).join('')}
     </div>
-    <div class="card grid" style="gap:10px"><div class="row spread"><h3>Grind map, last 26 weeks</h3><span class="faint num" style="font-size:.85rem">${logs.length} total reviews &middot; ${last30.length} in 30 days</span></div>${heatmap(26)}</div>
+    <div class="card grid" style="gap:10px"><div class="row spread"><h3>Activity, last 26 weeks</h3><span class="faint num" style="font-size:.85rem">${logs.length} total reviews &middot; ${last30.length} in 30 days</span></div>${heatmap(26)}</div>
     <div class="grid cols-2">
       <div class="card grid" style="gap:8px"><h3>Reviews per day</h3>${barChart(days30.map(d => d.n), days30.map((d, i) => i % 7 === 0 ? d.k.slice(5) : ''), 'var(--accent)')}</div>
       <div class="card grid" style="gap:8px"><h3>Due in the next 14 days</h3>${barChart(fc.map(d => d.n), fc.map(d => d.i === 0 ? 'today' : d.i % 3 === 0 ? '+' + d.i + 'd' : ''), 'var(--easy)')}</div>
@@ -278,7 +278,7 @@ function authScreen() {
     const draw = (msg = '', kind = '') => {
       const em0 = $('#a-email'), nm0 = $('#a-name');
       if (em0) keep.email = em0.value; if (nm0) keep.name = nm0.value;
-      $('#view').innerHTML = `<div class="page" style="max-width:440px;padding-top:6vh"><div class="grid" style="gap:6px;text-align:center"><div class="logo" style="justify-content:center;font-size:2rem">reps<span class="cur">_</span></div><h1 style="margin-top:10px">IB interview prep <span class="grad">that actually sticks.</span></h1><p class="muted">LeetCode for banking technicals, Duolingo streaks, spaced repetition doing the heavy lifting.</p></div>
+      $('#view').innerHTML = `<div class="page" style="max-width:440px;padding-top:6vh"><div class="grid" style="gap:6px;text-align:center"><div class="logo" style="justify-content:center;font-size:2rem">reps<span class="cur">_</span></div><h1 style="margin-top:10px">IB interview prep <span class="grad">that sticks.</span></h1><p class="muted">Practice banking technicals and fit questions every day, with spaced repetition scheduling what to review next.</p></div>
         <form class="card grid" id="auth" style="gap:14px" novalidate>
           <div class="tabs" role="tablist" style="justify-self:center"><button type="button" role="tab" aria-selected="${!modeSU}" data-m="in">Sign in</button><button type="button" role="tab" aria-selected="${modeSU}" data-m="up">Create account</button></div>
           ${modeSU ? `<label class="field" for="a-name">Name<input class="input" id="a-name" autocomplete="name" required value="${h(keep.name)}"></label>` : ''}

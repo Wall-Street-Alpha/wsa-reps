@@ -57,12 +57,12 @@ let keyHandler = null;
 function setKeys(fn) { keyHandler = fn; }
 document.addEventListener('keydown', e => { if (keyHandler) keyHandler(e); });
 
-const RATE_LABELS = ['', 'blanked', 'shaky', 'got it', 'ez'];
+const RATE_LABELS = ['', 'Again', 'Hard', 'Good', 'Easy'];
 const VIBES = {
-  ok: ['W answer.', 'you ate that.', 'locked in fr.', 'banker energy.', 'clean. no notes.'],
-  mid: ['almost there.', 'decent, tighten it up.', 'mid but fixable.', 'half the points are there.'],
-  bad: ['not quite.', "it's giving needs more reps.", 'L for now. it comes back soon.', 'rough one. run it back.'],
-  peek: ['here\'s the play.', 'study this one.', 'no shame in peeking.'],
+  ok: ['Strong answer.', 'Well structured.', 'Nicely done.'],
+  mid: ['Partially there. Compare with the model answer.', 'Close. A few key points are missing.'],
+  bad: ['Not yet. This one will come back soon.', 'Review the model answer and try again later.'],
+  peek: ['Study the model answer, then rate yourself.'],
 };
 const pick = a => a[Math.floor(Math.random() * a.length)];
 function verdictOf(score) {
@@ -82,7 +82,7 @@ function cardFlow(container, cardId, { onRated, mode = 'practice', combo = () =>
       ${showQ ? `<div class="row spread"><div class="row" style="gap:6px">${diffPill(card.difficulty)}<span class="pill">${h(card.category)}</span></div><button class="icon-btn" id="cf-speak" title="Read it out loud" aria-label="Read the question aloud">${I.speak}</button></div>
       <div class="q-text">${h(card.q)}</div>` : ''}
       <div class="editor">
-        <div class="editor-bar"><span class="file"><i></i>answer.md</span><span class="faint">talk it through like you're in the room</span><span class="sp"><span class="timer" id="cf-timer">0:00</span>${showQ ? '' : `<button class="icon-btn" id="cf-speak" title="Read it out loud" aria-label="Read the question aloud">${I.speak}</button>`}</span></div>
+        <div class="editor-bar"><span class="file"><i></i>answer.md</span><span class="faint">answer as you would in the interview</span><span class="sp"><span class="timer" id="cf-timer">0:00</span>${showQ ? '' : `<button class="icon-btn" id="cf-speak" title="Read it out loud" aria-label="Read the question aloud">${I.speak}</button>`}</span></div>
         <div class="editor-body"><pre class="gutter" id="cf-gutter" aria-hidden="true">1</pre><textarea id="cf-answer" spellcheck="true" aria-label="Your answer" placeholder="// your answer here&#10;// Ctrl+Enter to submit, Space to peek"></textarea></div>
         <div class="editor-foot" id="cf-actions"><span class="hint">${layout === 'ws' ? 'Ctrl+Enter submit' : 'Ctrl+Enter submit · Space peek'}</span><button class="btn sm ghost" id="cf-reveal">Peek answer</button><button class="btn sm" id="cf-run">${I.play} Run</button><button class="btn sm go" id="cf-submit">Submit</button></div>
       </div>
@@ -108,9 +108,9 @@ function cardFlow(container, cardId, { onRated, mode = 'practice', combo = () =>
   $('#cf-run', container).onclick = () => {
     const out = $('#cf-run-out', container);
     const a = ta.value.trim();
-    if (!a) { out.innerHTML = `<div class="console"><div class="console-head">Test Result</div><div class="console-body"><span class="faint">Write something first. Even a rough outline counts.</span></div></div>`; return; }
+    if (!a) { out.innerHTML = `<div class="console"><div class="console-head">Test Result</div><div class="console-body"><span class="faint">Write an answer first. A rough outline is fine.</span></div></div>`; return; }
     const sc = Scoring.scoreAnswer(a, card.a), hits = sc.hits.filter(x => x.hit).length;
-    out.innerHTML = `<div class="console"><div class="console-head">Test Result <span class="faint" style="margin-left:auto;font-weight:600">run, not submitted</span></div><div class="console-body"><div class="row spread"><span class="verdict ${verdictOf(sc).css}">${hits} / ${sc.hits.length} concepts hit</span><span class="faint mono" style="font-size:.8rem">${sc.words} words</span></div><div class="cases">${sc.hits.map(x => `<span class="case ${x.hit ? 'hit' : 'hidden-case'}">${x.hit ? h(x.term) : 'hidden'}</span>`).join('')}</div><span class="faint" style="font-size:.82rem">Missing concepts stay hidden until you submit. Keep cooking.</span></div></div>`;
+    out.innerHTML = `<div class="console"><div class="console-head">Test Result <span class="faint" style="margin-left:auto;font-weight:600">run, not submitted</span></div><div class="console-body"><div class="row spread"><span class="verdict ${verdictOf(sc).css}">${hits} / ${sc.hits.length} concepts hit</span><span class="faint mono" style="font-size:.8rem">${sc.words} words</span></div><div class="cases">${sc.hits.map(x => `<span class="case ${x.hit ? 'hit' : 'hidden-case'}">${x.hit ? h(x.term) : 'hidden'}</span>`).join('')}</div><span class="faint" style="font-size:.82rem">Missing concepts stay hidden until you submit.</span></div></div>`;
   };
   if (presetAnswer != null) setTimeout(() => reveal(true), 0);
 
@@ -138,7 +138,7 @@ function cardFlow(container, cardId, { onRated, mode = 'practice', combo = () =>
           <div><div class="eyebrow" style="margin-bottom:8px">Model answer</div><div class="answer-text model">${paras(card.a)}</div></div>
           <div id="cf-coach"></div>
         </div></div>
-        ${layout === 'ws' ? `<div class="grid" style="gap:8px"><div class="row spread"><span class="eyebrow">How'd that go?</span>${sug ? '<span class="faint" style="font-size:.78rem">outlined = suggested</span>' : ''}</div>${rates}</div>`
+        ${layout === 'ws' ? `<div class="grid" style="gap:8px"><div class="row spread"><span class="eyebrow">How well did you know it?</span>${sug ? '<span class="faint" style="font-size:.78rem">outlined = suggested</span>' : ''}</div>${rates}</div>`
           : `<div class="sheet ${v.cls === 'peek' ? '' : v.cls}"><div class="sheet-msg">${h(pick(VIBES[v.cls]))}</div>${rates}</div>`}
       </div>`;
     res.querySelectorAll('.rate').forEach(b => b.onclick = () => rate(+b.dataset.r));
@@ -168,10 +168,10 @@ function cardFlow(container, cardId, { onRated, mode = 'practice', combo = () =>
 async function coachBlock(el, card, answer) {
   const sample = await getCap('sample');
   if (!sample || !el.isConnected) return;
-  el.innerHTML = `<div class="coach"><div class="row spread"><div><b>AI interviewer</b><div class="faint" style="font-size:.82rem">Grades you like an MD would, then hits you with the follow-up.</div></div><button class="btn sm" id="coach-go">${answer ? 'Grade me' : 'Show me a better answer'}</button></div><div id="coach-out"></div></div>`;
+  el.innerHTML = `<div class="coach"><div class="row spread"><div><b>AI interviewer</b><div class="faint" style="font-size:.82rem">Grades your answer like an interviewer and suggests a follow-up question.</div></div><button class="btn sm" id="coach-go">${answer ? 'Grade my answer' : 'Show a stronger answer'}</button></div><div id="coach-out"></div></div>`;
   $('#coach-go', el).onclick = async () => {
     const btn = $('#coach-go', el), out = $('#coach-out', el);
-    btn.disabled = true; btn.textContent = 'cooking...';
+    btn.disabled = true; btn.textContent = 'Grading...';
     const prompt = `You are a senior investment banking interviewer at a bulge-bracket bank grading a candidate's spoken answer.\n\nQUESTION:\n${card.q}\n\nREFERENCE ANSWER (from the candidate's study guide):\n${card.a}\n\nCANDIDATE'S ANSWER:\n${answer || '(no answer given; the candidate wants to see a strong answer)'}\n\nReturn only JSON with these keys:\n{"score": integer 1-4 (1 = would fail this question, 2 = shaky, 3 = solid, 4 = excellent),\n "verdict": one sentence,\n "strengths": array of up to 3 short strings,\n "gaps": array of up to 3 short strings naming what was missing or wrong,\n "stronger_answer": a concise answer the candidate could say out loud in under 60 seconds,\n "follow_up": one follow-up question the interviewer would likely ask next}`;
     try {
       const r = await sample.json(prompt, { modelTier: 'default' });
