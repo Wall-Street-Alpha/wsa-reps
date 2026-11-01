@@ -28,6 +28,10 @@ export function cleanText(s) {
 export function toParagraphs(text) {
   return text
     .replace(/\r/g, '')
+    // Pasted lists often use single line breaks: keep a question line, a Q:/A: line and a numbered item as their own paragraphs.
+    .replace(/\?[ \t]*\n(?=[ \t]*\S)/g, '?\n\n')
+    .replace(/\n(?=[ \t]*(?:Q(?:uestion)?|A(?:nswer)?)\s*\d*\s*:)/g, '\n\n')
+    .replace(/\n(?=[ \t]*\d{1,3}[.)]\s+[A-Z"])/g, '\n\n')
     .split(/\n\s*\n/)
     .map(p => cleanText(p.replace(/-\n(?=[a-z])/g, '').replace(/\n/g, ' ')))
     .filter(p => p && !NOISE.some(rx => rx.test(p)));
