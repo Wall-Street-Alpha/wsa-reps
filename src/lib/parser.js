@@ -12,7 +12,7 @@ const NOISE = [
   /\.{5,}/,
 ];
 
-const HEADER = /(questions?\s*(&|and)\s*(suggested\s*)?answers?)|^(section|chapter|part)\s+\w+/i;
+const HEADER = /((questions?\s*)?(&|and)\s*(suggested\s*)?answers?\b)|^(section|chapter|part)\s+\w+/i;
 
 export function cleanText(s) {
   return s
@@ -43,13 +43,23 @@ function looksLikeQuestion(t) {
 function headerInfo(p) {
   if (p.length > 120 || /[.?!]$/.test(p)) return null;
   if (!HEADER.test(p)) return null;
-  let name = p.replace(/questions?\s*(&|and)\s*(suggested\s*)?answers?/i, '').replace(/["]/g, '').trim();
+  let name = p.replace(/(questions?\s*)?(&|and)\s*(suggested\s*)?answers?/i, '').replace(/["]/g, '').trim();
   let difficulty = 'Medium';
   if (/\bbasic\b/i.test(name)) difficulty = 'Easy';
   if (/\badvanced\b/i.test(name)) difficulty = 'Hard';
   name = name.replace(/[–—-]\s*(basic|advanced)\s*$/i, '').replace(/[–—-]\s*$/, '').trim();
   if (!name) name = 'General';
   return { name, difficulty };
+}
+
+// A short title line with no sentence punctuation, e.g. "Discussing Transaction Experience".
+const SMALL = /^(&|\/|of|the|and|or|to|a|an|in|on|for|with|vs\.?|–|—|-)$/i;
+function titleInfo(p) {
+  if (p.length > 70 || /[.?!:;,"]$/.test(p) || /^\d/.test(p)) return null;
+  const words = p.split(/\s+/);
+  if (words.length < 2 || words.length > 8) return null;
+  if (!words.every(w => SMALL.test(w) || /^["(]?[A-Z0-9]/.test(w))) return null;
+  return { name: p.replace(/["]/g, '').trim(), difficulty: 'Medium' };
 }
 
 const TECH_HINTS = [
@@ -107,10 +117,13 @@ function parseNumbered(paras) {
   let expected = 1;
   let cur = null;
   let track = 'Behavioral';
+  let pendingTitle = null;
   const queue = [...paras];
   while (queue.length) {
     let p = queue.shift();
     const h = headerInfo(p);
+    const t = !h && cur ? titleInfo(p) : null;
+    if (t) { pendingTitle = t; cur.a.push(p); continue; }
     if (h) {
       if (/^technical$/i.test(h.name)) { track = 'Technical'; continue; }
       section = { ...h, track: TECH_CATS.test(h.name) ? 'Technical' : track };
@@ -139,8 +152,17 @@ function parseNumbered(paras) {
     if (m) {
       const n = +m[1];
       const body = m[2];
-      const isNext = n === expected || (n === 1 && !cur);
+      const restart = n === 1 && cur && pendingTitle && looksLikeQuestion(body);
+      if (restart) {
+        // The title line was swallowed into the previous answer; take it back out.
+        const i = cur.a.lastIndexOf(pendingTitle.name);
+        if (i >= 0) cur.a.splice(i);
+        section = { ...pendingTitle, track: TECH_CATS.test(pendingTitle.name) ? 'Technical' : track };
+        pendingTitle = null;
+      }
+      const isNext = n === expected || (n === 1 && !cur) || restart;
       if (isNext && looksLikeQuestion(body)) {
+        pendingTitle = null;
         cur = { q: body, a: [], section, n };
         out.push(cur);
         expected = n + 1;

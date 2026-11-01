@@ -2,7 +2,14 @@
 
 LeetCode plus Duolingo for investment banking interviews. Import PDF, DOCX, TXT, CSV or JSON question banks, drill them with FSRS spaced repetition, and track streaks, XP, levels and mastery under your own login.
 
-**Live app:** https://claude.ai/artifact/5d3FrceE8d3u25eKw6fd8J (claude.ai sign-in; each person's progress is stored privately under their account)
+**Live app (claude.ai sign-in):** https://claude.ai/artifact/5d3FrceE8d3u25eKw6fd8J
+**Website (GitHub Pages, email sign-in):** https://wall-street-alpha.github.io/wsa-reps/ once Pages is enabled
+
+## Hosting
+The same code runs in three modes, picked at load:
+- **claude.ai artifact:** sign-in is the viewer's claude.ai account; progress is stored in the artifact database. `npm run build` writes `dist/index.html`.
+- **Website:** GitHub Pages with email and password accounts on Supabase. `.github/workflows/pages.yml` runs `node scripts/build.mjs site` on every push to `main`, using repository variables `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` (or `app/config.json`). Run `supabase/setup.sql` once in the Supabase SQL editor.
+- **Browser only:** with neither, progress is kept in the browser.
 
 ## Features
 - **Today:** daily queue (due reviews first, then new cards up to your daily limit), XP goal ring, level, streak with freezes, weak spots, activity heatmap.
@@ -21,6 +28,8 @@ LeetCode plus Duolingo for investment banking interviews. Import PDF, DOCX, TXT,
 | `app/` | UI: styles, storage adapter, PDF/DOCX extraction, pages |
 | `scripts/build.mjs` | Assembles everything into `dist/index.html` (one file, no bundler) |
 | `scripts/test-parser.mjs` | Runs the parser on any file |
+| `.github/workflows/pages.yml` | GitHub Pages deploy |
+| `supabase/setup.sql` | Accounts table with row-level security |
 
 ```bash
 npm install

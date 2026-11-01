@@ -15,7 +15,7 @@ Pages.today = el => {
   el.innerHTML = `<div class="page">
     <div class="row spread"><div><div class="eyebrow">${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</div><h1>${greet}${name ? ', ' + h(name.split(' ')[0]) : ''}.</h1></div>
       <div class="row"><span class="flame" title="Day streak">${I.flame}${p.streak}</span><span class="level-chip">Lv ${lv}</span></div></div>
-    ${Store.mode === 'local' ? `<div class="banner">You're in local mode: progress is saved in this browser only. Open this app from its claude.ai link while signed in to sync progress across devices.</div>` : ''}
+    ${Store.mode === 'local' ? `<div class="banner">Progress is saved in this browser only on this copy of the app.</div>` : ''}
     <div class="hero">
       <div class="card hero-main">
         <div><div class="eyebrow">Today's reps</div><h2 style="margin-top:6px;font-size:1.5rem">${queueLen ? `${queueLen} card${queueLen === 1 ? '' : 's'} ready` : 'All caught up'}</h2>

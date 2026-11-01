@@ -11,7 +11,13 @@ const lib = [
   wrap('Scoring', 'src/lib/scoring.js', 'scoreAnswer, keyTerms'),
   wrap('SeedMod', 'src/lib/seed.js', 'SEED') + '\nconst SEED = SeedMod.SEED;',
 ].join('\n\n');
-const js = [lib, r('app/store.js'), r('app/extract.js'), r('app/app-core.js'), r('app/app-ui.js'), r('app/app-pages.js'), r('app/app-pages2.js')].join('\n\n');
+let cfg = {};
+try { cfg = JSON.parse(r('app/config.json')); } catch {}
+if (process.env.SUPABASE_URL) cfg.supabaseUrl = process.env.SUPABASE_URL;
+if (process.env.SUPABASE_PUBLISHABLE_KEY) cfg.supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY;
+const target = process.argv[2] || 'artifact';
+const cfgJs = target === 'site' ? `window.WSA_CONFIG = ${JSON.stringify(cfg)};` : 'window.WSA_CONFIG = {};';
+const js = [cfgJs, lib, r('app/store.js'), r('app/extract.js'), r('app/app-core.js'), r('app/app-ui.js'), r('app/app-pages.js'), r('app/app-pages2.js')].join('\n\n');
 const html = `<title>WSA Reps</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,6 +40,10 @@ ${r('app/styles.css')}
 ${js}
 </script>
 `;
-mkdirSync(new URL('../dist/', import.meta.url), { recursive: true });
-writeFileSync(new URL('../dist/index.html', import.meta.url), html);
-console.log('dist/index.html', html.length, 'bytes');
+const out = target === 'site' ? '../site/' : '../dist/';
+mkdirSync(new URL(out, import.meta.url), { recursive: true });
+const page = target === 'site'
+  ? `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="description" content="Spaced-repetition practice for investment banking interviews.">${html.replace('<title>WSA Reps</title>', '<title>WSA Reps</title>').split('<style>')[0]}<style>${html.split('<style>')[1].split('</style>')[0]}</style></head><body>${html.split('</style>')[1]}</body></html>`
+  : html;
+writeFileSync(new URL(out + 'index.html', import.meta.url), page);
+console.log(out + 'index.html', page.length, 'bytes', target === 'site' ? JSON.stringify({ supabase: !!cfg.supabaseUrl }) : '');

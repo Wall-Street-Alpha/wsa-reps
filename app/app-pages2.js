@@ -158,7 +158,7 @@ Pages.progress = el => {
   for (const c of S.cards) { const s = S.st[c.id]; if (!s || s.state === 0) continue; const d = Math.max(0, Math.floor((s.due - now) / DAY_MS)); if (d < 14) fc[d].n++; }
   const us = units();
   const diffs = ['Easy', 'Medium', 'Hard'].map(d => { const cs = S.cards.filter(c => c.difficulty === d); return { d, n: cs.length, m: cs.length ? Math.round(cs.reduce((a, c) => a + SRS.mastery(S.st[c.id]), 0) / cs.length) : 0 }; });
-  el.innerHTML = `<div class="page"><div><div class="eyebrow">Your progress</div><h1>Progress</h1><p class="muted" style="margin-top:6px">${Store.mode === 'cloud' ? 'Synced to your account. Open this page on any device to pick up where you left off.' : 'Saved in this browser.'}</p></div>
+  el.innerHTML = `<div class="page"><div><div class="eyebrow">Your progress</div><h1>Progress</h1><p class="muted" style="margin-top:6px">${Store.mode !== 'local' ? 'Synced to your account. Sign in on any device to pick up where you left off.' : 'Saved in this browser.'}</p></div>
     <div class="grid cols-4">
       ${[['Level ' + levelOf(p.xp), p.xp + ' XP'], ['Current streak', p.streak + 'd'], ['Best streak', (p.best || 0) + 'd'], ['Retention (30d)', retention == null ? '–' : retention + '%'], ['Mastered', st.mastered], ['Learning', st.learning], ['New', st.new], ['Study time', studyMin >= 60 ? (studyMin / 60).toFixed(1) + 'h' : studyMin + 'm']].map(([l, v]) => `<div class="card stat"><span>${l}</span><b>${v}</b></div>`).join('')}
     </div>
@@ -196,7 +196,8 @@ Pages.prefs = el => {
       <button class="btn primary" id="p-save" style="justify-self:start">Save preferences</button>
     </div>
     <div class="card grid" style="gap:12px"><h2>Decks</h2>${S.decks.map(d => `<div class="grid" style="gap:8px;border-top:1px solid var(--line);padding-top:12px" data-deck="${d.id}"><div class="row spread"><input class="input" value="${h(d.name)}" data-rename="${d.id}" style="max-width:360px" aria-label="Deck name"><span class="faint num">${d.cards.length} cards</span></div><div class="row"><button class="btn sm" data-reset="${d.id}">Reset progress</button><button class="btn sm danger" data-del="${d.id}">Delete deck</button></div><div data-confirm="${d.id}"></div></div>`).join('') || '<p class="muted">No decks.</p>'}</div>
-    <div class="card grid" style="gap:10px"><h2>Your data</h2><p class="muted">${Store.mode === 'cloud' ? 'Progress is stored privately under your claude.ai account. Nobody else using this app can see it.' : 'Progress is stored in this browser only.'}</p><div class="row"><button class="btn" id="p-export">Export my data (JSON)</button></div><div id="p-export-out"></div></div></div>`;
+    <div class="card grid" style="gap:10px"><h2>Your data</h2><p class="muted">${Store.mode === 'account' ? 'Progress is stored privately under your account. Nobody else using this app can see it.' : Store.mode === 'cloud' ? 'Progress is stored privately under your claude.ai account. Nobody else using this app can see it.' : 'Progress is stored in this browser only.'}</p><div class="row"><button class="btn" id="p-export">Export my data (JSON)</button>${Store.mode === 'account' ? `<button class="btn" id="p-signout">Sign out ${h(Store.email)}</button>` : ''}</div><div id="p-export-out"></div></div></div>`;
+  const so = $('#p-signout', el); if (so) so.onclick = () => Store.signOut();
   $('#p-ret', el).oninput = e => $('#p-ret-v', el).textContent = Math.round(e.target.value * 100) + '%';
   $('#p-save', el).onclick = () => {
     p.name = $('#p-name', el).value.trim(); p.goal = +$('#p-goal', el).value; p.newPerDay = Math.max(0, Math.min(100, +$('#p-new', el).value || 0)); p.retention = +$('#p-ret', el).value;
@@ -246,21 +247,59 @@ function renderNav() {
   $('#tabbar').innerHTML = NAV.map(([k, l]) => `<a class="nav-link" href="#${k}" data-nav="${k}">${I[k]}<span>${l}</span></a>`).join('');
   Store.onStatus(s => {
     const el = $('#sync'); if (!el) return;
-    el.innerHTML = s.mode === 'cloud' ? `<span class="dot ${s.error ? 'warn' : 'ok'}"></span>${s.error ? 'Sync issue, retrying' : s.pending ? 'Saving...' : 'Synced to your account'}` : `<span class="dot warn"></span>Saved in this browser`;
+    el.innerHTML = s.mode === 'account' ? `<span class="dot ${s.error ? 'warn' : 'ok'}"></span>${s.error ? 'Sync issue, retrying' : s.pending ? 'Saving...' : 'Synced to your account'}` : s.mode === 'cloud' ? `<span class="dot ${s.error ? 'warn' : 'ok'}"></span>${s.error ? 'Sync issue, retrying' : s.pending ? 'Saving...' : 'Synced to your account'}` : `<span class="dot warn"></span>Saved in this browser`;
   });
 }
 async function boot() {
   applyTheme();
   renderNav();
   $('#view').innerHTML = `<div class="page"><div class="card empty"><div class="dot warn"></div><b>Loading your reps...</b></div></div>`;
-  await Store.init();
+  const init = await Store.init();
+  if (init.needsLogin) await authScreen();
   S.viewer = await Store.viewerName();
   try { await loadData(); }
   catch (e) { $('#view').innerHTML = `<div class="page"><div class="card empty"><h2>Couldn't load your progress</h2><p class="muted">Check your connection, then reload the page.</p></div></div>`; return; }
   const n = S.profile.name || S.viewer;
-  $('#who').textContent = n ? n : Store.mode === 'cloud' ? 'Signed in' : 'Guest';
+  $('#who').textContent = n ? n : Store.mode !== 'local' ? 'Signed in' : 'Guest';
   route();
 }
+function authScreen() {
+  document.body.classList.add('auth');
+  return new Promise(resolve => {
+    let modeSU = false;
+    const keep = { email: '', name: '' };
+    const draw = (msg = '', kind = '') => {
+      const em0 = $('#a-email'), nm0 = $('#a-name');
+      if (em0) keep.email = em0.value; if (nm0) keep.name = nm0.value;
+      $('#view').innerHTML = `<div class="page" style="max-width:440px;padding-top:6vh"><div class="grid" style="gap:6px;text-align:center"><div class="brand" style="justify-content:center;padding:0"><span class="brand-mark">IB</span>WSA Reps</div><h1>Interview reps that stick.</h1><p class="muted">Spaced repetition for investment banking interviews. Your progress is saved to your account.</p></div>
+        <form class="card grid" id="auth" style="gap:14px" novalidate>
+          <div class="tabs" role="tablist" style="justify-self:center"><button type="button" role="tab" aria-selected="${!modeSU}" data-m="in">Sign in</button><button type="button" role="tab" aria-selected="${modeSU}" data-m="up">Create account</button></div>
+          ${modeSU ? `<label class="field" for="a-name">Name<input class="input" id="a-name" autocomplete="name" required value="${h(keep.name)}"></label>` : ''}
+          <label class="field" for="a-email">Email<input class="input" id="a-email" type="email" autocomplete="email" required value="${h(keep.email)}"></label>
+          <label class="field" for="a-pass">Password<input class="input" id="a-pass" type="password" autocomplete="${modeSU ? 'new-password' : 'current-password'}" minlength="6" required></label>
+          ${msg ? `<div class="${kind === 'ok' ? 'card' : 'banner'}" style="font-size:.88rem">${h(msg)}</div>` : ''}
+          <button class="btn primary big" type="submit">${modeSU ? 'Create account' : 'Sign in'}</button>
+          ${modeSU ? '' : '<button class="btn ghost sm" type="button" id="a-forgot">Forgot password?</button>'}
+        </form></div>`;
+      $('#view').querySelectorAll('[data-m]').forEach(b => b.onclick = () => { modeSU = b.dataset.m === 'up'; draw(); });
+      const f = $('#a-forgot'); if (f) f.onclick = async () => { const em = $('#a-email').value.trim(); if (!em) return draw('Enter your email first, then tap Forgot password.'); try { await Store.resetPassword(em); draw('Check your email for a reset link.', 'ok'); } catch (e) { draw(e.message || 'Could not send the reset email.'); } };
+      $('#auth').onsubmit = async e => {
+        e.preventDefault();
+        const em = $('#a-email').value.trim(), pw = $('#a-pass').value, nm = modeSU ? $('#a-name').value.trim() : '';
+        if (!em || pw.length < 6) return draw('Enter your email and a password of at least 6 characters.');
+        const btn = e.target.querySelector('[type=submit]'); btn.disabled = true; btn.textContent = 'One moment...';
+        try {
+          if (modeSU) { const r = await Store.signUp(em, pw, nm); if (r.confirm) { modeSU = false; return draw('Account created. Check your email to confirm it, then sign in.', 'ok'); } }
+          else await Store.signIn(em, pw);
+          document.body.classList.remove('auth');
+          resolve();
+        } catch (err) { draw(/invalid login/i.test(err.message) ? 'That email and password do not match.' : err.message || 'Something went wrong. Try again.'); }
+      };
+    };
+    draw();
+  });
+}
+
 addEventListener('hashchange', route);
 addEventListener('pagehide', () => { if (SESSION && SESSION.rated) finishSessionBonus(); });
 boot();
