@@ -38,7 +38,7 @@ async function loadData() {
       if (d && Array.isArray(d.cards)) cards.push(...d.cards);
     }
     addDeckToMemory(meta, cards);
-    const st = docs['st-' + meta.id]?.m || {};
+    const st = Object.assign({}, ...Object.keys(docs).filter(k => k === 'st-' + meta.id || k.startsWith(`st-${meta.id}~`)).map(k => docs[k]?.m || {}));
     for (const [cid, v] of Object.entries(st)) {
       S.st[cid] = { state: v[0], due: v[1], s: v[2], d: v[3], reps: v[4], lapses: v[5], last: v[6] };
       if (v[7]) S.star[cid] = true;
@@ -78,7 +78,9 @@ function deleteDeck(id) {
   const meta = S.profile.decks.find(d => d.id === id);
   if (!meta) return;
   for (let i = 0; i < (meta.chunks || 1); i++) Store.put(`dk-${id}-${i}`, null);
-  Store.put('st-' + id, null); Store.put('nt-' + id, null);
+  const blocks = Math.max(1, Math.ceil((meta.count || 0) / STATE_BLOCK));
+  for (let i = 0; i < blocks; i++) Store.put(stateKey(id, i), null);
+  Store.put('nt-' + id, null);
   S.profile.decks = S.profile.decks.filter(d => d.id !== id);
   S.decks = S.decks.filter(d => d.id !== id);
   S.cards = S.cards.filter(c => c.deck !== id);
@@ -99,17 +101,27 @@ function resetDeck(id) {
 }
 
 const saveProfile = () => Store.put('profile', S.profile);
-function saveStates(deckId) {
-  const m = {};
-  for (const c of S.cards) {
-    if (c.deck !== deckId) continue;
-    const s = S.st[c.id];
-    if (!s && !S.star[c.id]) continue;
-    const v = s ? [s.state, s.due, +s.s.toFixed(4), +s.d.toFixed(4), s.reps, s.lapses, s.last] : [0, 0, 0, 0, 0, 0, 0];
-    if (S.star[c.id]) v.push(1);
-    m[c.id] = v;
+// Card progress per deck, split into blocks of STATE_BLOCK cards for very large decks.
+const STATE_BLOCK = 500;
+const fullySaved = new Set();
+const stateKey = (deckId, i) => i === 0 ? 'st-' + deckId : `st-${deckId}~${i}`;
+function saveStates(deckId, onlyCardId) {
+  if (onlyCardId && !fullySaved.has(deckId)) { fullySaved.add(deckId); onlyCardId = null; }
+  const cards = S.cards.filter(c => c.deck === deckId).sort((a, b) => a.pos - b.pos);
+  const blocks = Math.max(1, Math.ceil(cards.length / STATE_BLOCK));
+  for (let i = 0; i < blocks; i++) {
+    const part = cards.slice(i * STATE_BLOCK, (i + 1) * STATE_BLOCK);
+    if (onlyCardId && !part.some(c => c.id === onlyCardId)) continue;
+    const m = {};
+    for (const c of part) {
+      const s = S.st[c.id];
+      if (!s && !S.star[c.id]) continue;
+      const v = s ? [s.state, s.due, +s.s.toFixed(4), +s.d.toFixed(4), s.reps, s.lapses, s.last] : [0, 0, 0, 0, 0, 0, 0];
+      if (S.star[c.id]) v.push(1);
+      m[c.id] = v;
+    }
+    Store.put(stateKey(deckId, i), { m });
   }
-  Store.put('st-' + deckId, { m });
 }
 let notesTimer = null;
 function saveNotes(deckId) {
@@ -188,15 +200,24 @@ function rateCard(cardId, rating, { ms = 0, coverage = -1, mode = 'practice', co
     if (S.profile.intro.day !== dayKey()) S.profile.intro = { day: dayKey(), count: 0 };
     S.profile.intro.count += 1;
   }
-  const mk = monthKey();
+  const mk = currentLogKey();
   (S.logs[mk] ||= []).push([Date.now(), cardId, rating, Math.round(ms), coverage, xp, mode, wasNew ? 0 : (prev.state === SRS.STATE.REVIEW ? 2 : 1)]);
   Store.put('lg-' + mk, { e: S.logs[mk] });
-  saveStates(card.deck);
+  saveStates(card.deck, cardId);
   checkAchievements();
   saveProfile();
   if (first && S.profile.streak > 1) App.toast(`${S.profile.streak}-day streak`);
   if (typeof updateNavStats === 'function') updateNavStats();
   return { xp, next };
+}
+
+// Review history is stored per month, split into blocks of LOG_BLOCK reviews so no saved record grows too large.
+const LOG_BLOCK = 500;
+function currentLogKey() {
+  const m = monthKey();
+  let n = 1;
+  while (S.logs[n === 1 ? m : `${m}-${n}`] && S.logs[n === 1 ? m : `${m}-${n}`].length >= LOG_BLOCK) n++;
+  return n === 1 ? m : `${m}-${n}`;
 }
 
 function finishSessionBonus() { addXp(20); checkAchievements(); saveProfile(); if (typeof updateNavStats === 'function') updateNavStats(); }

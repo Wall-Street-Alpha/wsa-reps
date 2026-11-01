@@ -152,12 +152,18 @@ async function handleFile(el, file) {
     else {
       const text = ext === 'pdf' ? await Extract.pdf(file, p => st.innerHTML = `<div class="card row"><span class="dot warn"></span> Reading page ${p.page} of ${p.pages}...</div>`)
         : ext === 'docx' ? await Extract.docx(file) : await file.text();
+      if (text.replace(/\s+/g, '').length < 40) {
+        st.innerHTML = `<div class="banner">We couldn't read any text from ${h(file.name)}. If it's a scanned PDF (photos of pages), export it as a text PDF or Word file, or copy the text into the Paste tab.</div>`;
+        return;
+      }
       cards = Parser.parseQA(text, { source: file.name }).cards;
     }
     st.innerHTML = '';
     showPreview(el, cards, file.name.replace(/\.[^.]+$/, ''));
   } catch (e) {
-    st.innerHTML = `<div class="banner">Could not read that file: ${h(e && e.message || e)}. Try saving it as PDF or DOCX, or paste the text instead.</div>`;
+    const ext = (file.name.split('.').pop() || '').toUpperCase();
+    st.innerHTML = `<div class="banner">We couldn't open ${h(file.name)}. It may be damaged, password-protected, or not really a ${h(ext)} file. Try saving it again from the original app, or paste the text into the Paste tab.</div>`;
+    Telemetry.report('Import failed: ' + (e && e.message || e));
   }
 }
 function splitBanks(v) {

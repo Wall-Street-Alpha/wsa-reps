@@ -13,6 +13,29 @@ const Store = (() => {
   const lsDel = k => { try { localStorage.removeItem('wsareps:' + k); } catch {} };
   const lsKeys = () => { try { return Object.keys(localStorage).filter(k => k.startsWith('wsareps:')).map(k => k.slice(8)); } catch { return []; } };
 
+  // Key-value store on IndexedDB (no 5 MB cap), falling back to localStorage.
+  const KV = (() => {
+    let dbp = null;
+    const open = () => dbp ||= new Promise((res, rej) => {
+      try { const r = indexedDB.open('wsareps', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }
+      catch (e) { rej(e); }
+    });
+    const run = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('kv', mode); const req = fn(t.objectStore('kv')); t.oncomplete = () => res(req && req.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); }); };
+    return {
+      async set(k, v) { try { await run('readwrite', st => st.put(v, k)); } catch { lsSet('kv:' + k, v); } },
+      async del(k) { try { await run('readwrite', st => st.delete(k)); } catch {} lsDel('kv:' + k); },
+      async prefix(p) {
+        const out = {};
+        try {
+          const db = await open();
+          await new Promise((res, rej) => { const t = db.transaction('kv', 'readonly'); const req = t.objectStore('kv').openCursor(IDBKeyRange.bound(p, p + '\uffff')); req.onsuccess = () => { const c = req.result; if (c) { out[c.key.slice(p.length)] = c.value; c.continue(); } else res(); }; req.onerror = () => rej(req.error); });
+        } catch { for (const k of lsKeys()) if (k.startsWith('kv:' + p)) out[k.slice(3 + p.length)] = lsGet(k); }
+        return out;
+      },
+    };
+  })();
+  const pendingMem = new Map();
+
   const loadScript = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src)); document.head.append(s); });
 
   // Returns {mode, needsLogin}. claude.ai viewer -> artifact db; configured website -> Supabase accounts; otherwise browser only.
@@ -163,7 +186,9 @@ const Store = (() => {
       const snap = await col().limit(1000).get();
       for (const d of snap.docs) if (d.exists) docs[d.id] = d.data();
     } else if (mode === 'account') {
-      const pending = lsGet(pendKey()) || {};
+      await migrateOldCache();
+      const pending = await KV.prefix(`${sbUser.id}:p:`);
+      for (const [k, v] of Object.entries(pending)) pendingMem.set(k, JSON.stringify(v));
       let remote = null;
       try {
         const { data, error } = await sb.from('user_docs').select('key,value').eq('user_id', sbUser.id);
@@ -172,14 +197,18 @@ const Store = (() => {
         for (const r of data) remote[r.key] = r.value;
         offline = false;
       } catch { offline = true; }
-      const base = remote || lsGet(cacheKey()) || {};
+      const base = remote || await KV.prefix(`${sbUser.id}:c:`);
       Object.assign(docs, base);
       for (const [k, v] of Object.entries(pending)) {
         if (v === null) delete docs[k];
         else docs[k] = remote && k in remote ? mergeDoc(k, v, remote[k]) : v;
       }
-      lsSet(cacheKey(), docs);
-      if (remote) for (const k of Object.keys(pending)) queue.set(k, k in docs ? docs[k] : null);
+      if (remote) {
+        const cached = await KV.prefix(`${sbUser.id}:c:`);
+        for (const k of Object.keys(cached)) if (!(k in docs)) KV.del(`${sbUser.id}:c:${k}`);
+        for (const [k, v] of Object.entries(docs)) KV.set(`${sbUser.id}:c:${k}`, v);
+        for (const k of Object.keys(pending)) queue.set(k, k in docs ? docs[k] : null);
+      }
       if (!remote && !Object.keys(base).length && !Object.keys(pending).length) throw new Error('offline and no saved copy');
       emit();
       if (queue.size) flush();
@@ -189,15 +218,18 @@ const Store = (() => {
     return docs;
   }
 
-  const pendKey = () => `acct:${sbUser.id}:pending`;
-  const cacheKey = () => `acct:${sbUser.id}:cache`;
+  async function migrateOldCache() {
+    const oldP = lsGet(`acct:${sbUser.id}:pending`), oldC = lsGet(`acct:${sbUser.id}:cache`);
+    if (oldC) { for (const [k, v] of Object.entries(oldC)) await KV.set(`${sbUser.id}:c:${k}`, v); lsDel(`acct:${sbUser.id}:cache`); }
+    if (oldP) { for (const [k, v] of Object.entries(oldP)) await KV.set(`${sbUser.id}:p:${k}`, v); lsDel(`acct:${sbUser.id}:pending`); }
+  }
   function persistLocal(key, value) {
-    const pend = lsGet(pendKey()) || {}; pend[key] = value; lsSet(pendKey(), pend);
-    const cache = lsGet(cacheKey()) || {}; if (value === null) delete cache[key]; else cache[key] = value; lsSet(cacheKey(), cache);
+    pendingMem.set(key, JSON.stringify(value));
+    KV.set(`${sbUser.id}:p:${key}`, value);
+    if (value === null) KV.del(`${sbUser.id}:c:${key}`); else KV.set(`${sbUser.id}:c:${key}`, value);
   }
   function clearPending(key, value) {
-    const pend = lsGet(pendKey()) || {};
-    if (key in pend && JSON.stringify(pend[key]) === JSON.stringify(value)) { delete pend[key]; lsSet(pendKey(), pend); }
+    if (pendingMem.get(key) === JSON.stringify(value)) { pendingMem.delete(key); KV.del(`${sbUser.id}:p:${key}`); }
   }
 
   function put(key, value) {
@@ -303,8 +335,9 @@ const Store = (() => {
   }
 
   const status = () => ({ mode, pending: queue.size + (flushing ? 1 : 0), error: lastError, offline });
+  const pendingKeys = () => [...pendingMem.keys()];
   function emit() { for (const f of listeners) f(status()); }
   const onStatus = f => { listeners.add(f); f(status()); };
 
-  return { init, loadAll, put, chunkCards, status, onStatus, viewerName, signIn, signUp, signOut, resetPassword, googleEnabled, signInGoogle, isAdmin, adminStudents, adminDocs, loadSharedTags, setSharedTags, insertEvents, reportError, adminActivity, adminEventCounts, adminErrors, get signedIn() { return !!sbUser; }, inviteCode, recordReferral, myReferrals, createChallenge, getChallenge, postResult, myChallenges, get email() { return sbUser?.email || ''; }, get client() { return sb; }, get userId() { return sbUser?.id || null; }, get mode() { return mode; }, lsGet, lsSet };
+  return { init, loadAll, put, chunkCards, status, onStatus, viewerName, signIn, signUp, signOut, resetPassword, googleEnabled, signInGoogle, isAdmin, adminStudents, adminDocs, loadSharedTags, setSharedTags, insertEvents, reportError, adminActivity, adminEventCounts, adminErrors, get signedIn() { return !!sbUser; }, pendingKeys, inviteCode, recordReferral, myReferrals, createChallenge, getChallenge, postResult, myChallenges, get email() { return sbUser?.email || ''; }, get client() { return sb; }, get userId() { return sbUser?.id || null; }, get mode() { return mode; }, lsGet, lsSet };
 })();
