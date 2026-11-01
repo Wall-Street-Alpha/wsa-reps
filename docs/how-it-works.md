@@ -42,6 +42,13 @@ Supabase is a hosted Postgres database with a few extras switched on: user accou
 
 Only people listed in `app_admins` can call those functions. Students still can't see each other, and can't read events or errors. The file is safe to run again after updates.
 
+**Adding more admins.** Run `supabase/admin-manage.sql` once. After that, the Admin page has an **Admins** tab:
+1. The new admin signs up on WSA Reps themselves.
+2. You type the email they signed up with and click **Add admin**. If no account uses that email yet, the app says so.
+3. **Remove** takes admin access away. Their account and progress stay. Nobody can remove themselves, so there is always at least one admin.
+
+Email confirmation is off, so anyone could sign up with someone else's address. Check with the person that they created the account before you make it an admin.
+
 **SQL Editor** lets you ask the database questions directly. `supabase/admin-queries.sql` has ready-made queries: sign-ups, activity per student, reviews per day, imported decks and mock interviews.
 
 **Logs** (left sidebar) shows sign-in attempts and API calls if something looks wrong.
