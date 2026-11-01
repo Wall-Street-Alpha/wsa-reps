@@ -2,7 +2,7 @@
 const Store = (() => {
   const CHUNK_BYTES = 180000;
   let db = null, user = null, uid = null, mode = 'local';
-  let sb = null, sbUser = null;
+  let sb = null, sbUser = null, accessToken = null;
   const CFG = window.WSA_CONFIG || {};
   const queue = new Map();
   let flushing = false, lastError = null, offline = false, reconnectMerge = new Set(), retryTimer = null;
@@ -54,6 +54,8 @@ const Store = (() => {
         sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' } });
         const { data } = await sb.auth.getSession();
         sbUser = data.session?.user || null;
+        accessToken = data.session?.access_token || null;
+        sb.auth.onAuthStateChange((_e, sess) => { accessToken = sess?.access_token || null; });
         if (/[?&]code=|[?&]error=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
         mode = 'account';
         emit();
@@ -68,14 +70,14 @@ const Store = (() => {
   async function signIn(email, password) {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    sbUser = data.user;
+    sbUser = data.user; accessToken = data.session?.access_token || accessToken;
     emit();
   }
   async function signUp(email, password, name) {
     const { data, error } = await sb.auth.signUp({ email, password, options: { data: { display_name: name }, emailRedirectTo: location.origin + location.pathname } });
     if (error) throw error;
     if (!data.session) return { confirm: true };
-    sbUser = data.user;
+    sbUser = data.user; accessToken = data.session.access_token;
     return { confirm: false };
   }
   async function googleEnabled() {
@@ -107,6 +109,14 @@ const Store = (() => {
   async function setSharedTags(qh, question, banks) {
     const { error } = await sb.from('question_tags').upsert({ qhash: qh, question: question.slice(0, 500), banks, updated_by: sbUser.id, updated_at: new Date().toISOString() });
     if (error) throw error;
+  }
+  // Fire-and-forget send that the browser completes even while the page is closing.
+  function beaconEvents(rows) {
+    if (!accessToken || !rows.length) return false;
+    try {
+      fetch(CFG.supabaseUrl + '/rest/v1/app_events', { method: 'POST', keepalive: true, headers: { apikey: CFG.supabaseKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify(rows) });
+      return true;
+    } catch { return false; }
   }
   async function insertEvents(rows) {
     const { error } = await sb.from('app_events').insert(rows);
@@ -364,5 +374,5 @@ const Store = (() => {
   function emit() { for (const f of listeners) f(status()); }
   const onStatus = f => { listeners.add(f); f(status()); };
 
-  return { init, loadAll, put, chunkCards, status, onStatus, viewerName, signIn, signUp, signOut, resetPassword, googleEnabled, signInGoogle, isAdmin, adminStudents, adminDocs, loadSharedTags, setSharedTags, insertEvents, reportError, adminActivity, adminEventCounts, adminErrors, get signedIn() { return !!sbUser; }, pendingKeys, onMerged: f => mergeListeners.add(f), inviteCode, recordReferral, myReferrals, createChallenge, getChallenge, postResult, myChallenges, get email() { return sbUser?.email || ''; }, get client() { return sb; }, get userId() { return sbUser?.id || null; }, get mode() { return mode; }, lsGet, lsSet };
+  return { init, loadAll, put, chunkCards, status, onStatus, viewerName, signIn, signUp, signOut, resetPassword, googleEnabled, signInGoogle, isAdmin, adminStudents, adminDocs, loadSharedTags, setSharedTags, insertEvents, beaconEvents, reportError, adminActivity, adminEventCounts, adminErrors, get signedIn() { return !!sbUser; }, pendingKeys, onMerged: f => mergeListeners.add(f), inviteCode, recordReferral, myReferrals, createChallenge, getChallenge, postResult, myChallenges, get email() { return sbUser?.email || ''; }, get client() { return sb; }, get userId() { return sbUser?.id || null; }, get mode() { return mode; }, lsGet, lsSet };
 })();

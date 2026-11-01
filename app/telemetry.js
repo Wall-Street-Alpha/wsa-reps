@@ -8,7 +8,7 @@ const Telemetry = (() => {
     q.push({ name, props, created_at: new Date().toISOString() });
     if (q.length > 500) q = q.slice(-500);
     Store.lsSet(KEY, q);
-    clearTimeout(timer); timer = setTimeout(flush, 4000);
+    clearTimeout(timer); timer = setTimeout(flush, 1500);
   }
   async function flush() {
     if (sending || !q.length || !active() || !navigator.onLine) return;
@@ -25,7 +25,13 @@ const Telemetry = (() => {
     }
   }
   addEventListener('online', flush);
-  addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
+  function sendOnExit() {
+    if (!q.length || !active() || sending) return;
+    const batch = q.slice(0, 50).map(e => ({ name: e.name, props: e.props, created_at: e.created_at }));
+    if (Store.beaconEvents(batch)) { q = q.slice(batch.length); Store.lsSet(KEY, q); }
+  }
+  addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') sendOnExit(); });
+  addEventListener('pagehide', sendOnExit);
 
   let reported = 0;
   const seen = new Set();
