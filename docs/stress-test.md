@@ -1,6 +1,6 @@
 # WSA Reps stress test, 2026-11-01
 
-**Result:** the app holds up well beyond expected class sizes. The test found three problems and all three are fixed. No security holes turned up.
+**Result:** the app holds up well beyond expected class sizes. The test found four problems, including one data-loss bug that only showed up on the live site, and all four are fixed. No security holes turned up.
 
 ## Results
 
@@ -25,6 +25,22 @@
 
 The database figures use the five test accounts from a single machine; all test data was deleted afterwards. Each answered card makes about three saves, so 333 per second covers well over a hundred students answering at the same moment.
 
+## Live website test (real users, real database)
+
+Ten real browsers used the live site at the same time: the five test accounts, each signed in on a laptop and a phone at once. Every browser signed in, answered questions, searched the problem list, and opened Progress and Mock.
+
+| Measure | Result |
+|---|---|
+| Page load to sign-in screen | 1.2 to 3.7 seconds |
+| Sign-in to home screen | 4.5 to 7 seconds |
+| Page errors | 0 |
+| Reviews saved, before fix | 40 of 80. **Half were lost** when one account answered on two devices at once |
+| Reviews saved, after fix | 160 of 160 over two runs |
+| XP from both devices | 120 earned, 120 recorded |
+| Features waiting on setup SQL | Friends shows "turns on after setup"; students cannot open Admin |
+
+**Not tested live:** the admin panel, bank tags, logging, invites and challenges. They depend on `supabase/admin-setup.sql`, which hasn't been run on the live database yet. All of them passed against a stand-in database, and their security rules were tested on a real Postgres engine.
+
 ## Problems found and fixed
 
 1. **claude.ai version could stop saving for heavy users.**
@@ -35,6 +51,10 @@ The database figures use the five test accounts from a single machine; all test 
    - *Fix:* it moved to the browser's database storage, which holds hundreds of megabytes. Existing offline data is carried over automatically.
 3. **Each answer re-uploaded a lot of data for heavy users,** up to about 260 KB.
    - *Fix:* the smaller blocks bring that to about 30 KB. A migration test confirmed old-style saved progress survives the change.
+
+4. **The same account on two devices could lose reviews.** Each device overwrote the other's saves. Found by the live test.
+   - *Fix:* saves now re-read the server copy, merge, and write only if nothing changed in between (a version check on each row), retrying when it did.
+   - *Fix:* XP from both devices adds up rather than one overwriting the other, and the open app picks up the other device's reviews.
 
 Also improved: unreadable files now say what's wrong in plain English ("may be damaged, password-protected, or a scanned PDF"), and import failures are logged to the admin Errors tab.
 
