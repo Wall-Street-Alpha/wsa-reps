@@ -19,11 +19,11 @@ const I = {
   play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
   lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
   sNew: '<svg class="status" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--ink-3)"><circle cx="10" cy="10" r="7"/></svg>',
-  sLearn: '<svg class="status" viewBox="0 0 20 20" style="color:var(--hard)"><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 3a7 7 0 0 1 0 14z" fill="currentColor"/></svg>',
-  sDone: '<svg class="status" viewBox="0 0 20 20" style="color:var(--good)"><circle cx="10" cy="10" r="8" fill="currentColor"/><path d="M6 10l3 3 5-6" fill="none" stroke="var(--surface)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  sLearn: '<svg class="status" viewBox="0 0 20 20" style="color:var(--shaky)"><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 3a7 7 0 0 1 0 14z" fill="currentColor"/></svg>',
+  sDone: '<svg class="status" viewBox="0 0 20 20" style="color:var(--gotit)"><circle cx="10" cy="10" r="8" fill="currentColor"/><path d="M6 10l3 3 5-6" fill="none" stroke="var(--panel)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 const NAV = [['today', 'Home'], ['path', 'Learn'], ['problems', 'Problems'], ['mock', 'Mock'], ['progress', 'Progress'], ['import', 'Import']];
-const UNIT_COLORS = [['#58cc02', '#46a302'], ['#1cb0f6', '#1592cc'], ['#ce82ff', '#a568cc'], ['#ff9600', '#d67e00'], ['#ff4b4b', '#d33131'], ['#00cd9c', '#00a67e'], ['#ff86d0', '#d66aad'], ['#2b70c9', '#1f5aa6']];
+const UNIT_COLORS = [['#1f4e8c', '#173c6d'], ['#2f6f73', '#235457'], ['#5b4a8a', '#46386b'], ['#8a5a1f', '#6b4618'], ['#7a3b4a', '#5e2d39'], ['#3c6e47', '#2e5536'], ['#4a5d78', '#384760'], ['#6b6f2a', '#525520']];
 
 const App = {
   toast(msg) {
@@ -39,7 +39,7 @@ const diffText = d => `<span class="diff ${h(String(d).toLowerCase())}">${h(d)}<
 const relDue = s => {
   if (!s || s.state === SRS.STATE.NEW) return '<span class="faint">New</span>';
   const ms = s.due - Date.now();
-  if (ms <= 0) return '<span style="color:var(--accent);font-weight:700">Due now</span>';
+  if (ms <= 0) return '<span style="color:var(--brand);font-weight:700">Due now</span>';
   return `in ${SRS.formatInterval(ms)}`;
 };
 const paras = t => String(t || '').split(/\n{2,}/).map(p => `<p>${h(p)}</p>`).join('');

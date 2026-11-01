@@ -164,7 +164,7 @@ Pages.progress = el => {
     </div>
     <div class="card grid" style="gap:10px"><div class="row spread"><h3>Activity, last 26 weeks</h3><span class="faint num" style="font-size:.85rem">${logs.length} total reviews &middot; ${last30.length} in 30 days</span></div>${heatmap(26)}</div>
     <div class="grid cols-2">
-      <div class="card grid" style="gap:8px"><h3>Reviews per day</h3>${barChart(days30.map(d => d.n), days30.map((d, i) => i % 7 === 0 ? d.k.slice(5) : ''), 'var(--accent)')}</div>
+      <div class="card grid" style="gap:8px"><h3>Reviews per day</h3>${barChart(days30.map(d => d.n), days30.map((d, i) => i % 7 === 0 ? d.k.slice(5) : ''), 'var(--brand)')}</div>
       <div class="card grid" style="gap:8px"><h3>Due in the next 14 days</h3>${barChart(fc.map(d => d.n), fc.map(d => d.i === 0 ? 'today' : d.i % 3 === 0 ? '+' + d.i + 'd' : ''), 'var(--easy)')}</div>
     </div>
     <div class="grid cols-2">
@@ -278,7 +278,7 @@ function authScreen() {
     const draw = (msg = '', kind = '') => {
       const em0 = $('#a-email'), nm0 = $('#a-name');
       if (em0) keep.email = em0.value; if (nm0) keep.name = nm0.value;
-      $('#view').innerHTML = `<div class="page" style="max-width:440px;padding-top:6vh"><div class="grid" style="gap:6px;text-align:center"><div class="logo" style="justify-content:center;font-size:2rem">reps<span class="cur">_</span></div><h1 style="margin-top:10px">IB interview prep <span class="grad">that sticks.</span></h1><p class="muted">Practice banking technicals and fit questions every day, with spaced repetition scheduling what to review next.</p></div>
+      $('#view').innerHTML = `<div class="page" style="max-width:440px;padding-top:6vh"><div class="grid" style="gap:6px;text-align:center"><div class="logo" style="justify-content:center;font-size:1.4rem"><span class="mark">WSA</span>WSA Reps</div><h1 style="margin-top:10px">IB interview prep <span class="grad">that sticks.</span></h1><p class="muted">Practice banking technicals and fit questions every day, with spaced repetition scheduling what to review next.</p></div>
         <form class="card grid" id="auth" style="gap:14px" novalidate>
           <div class="tabs" role="tablist" style="justify-self:center"><button type="button" role="tab" aria-selected="${!modeSU}" data-m="in">Sign in</button><button type="button" role="tab" aria-selected="${modeSU}" data-m="up">Create account</button></div>
           ${modeSU ? `<label class="field" for="a-name">Name<input class="input" id="a-name" autocomplete="name" required value="${h(keep.name)}"></label>` : ''}

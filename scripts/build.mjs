@@ -22,12 +22,12 @@ const html = `<title>WSA Reps</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
 ${r('app/styles.css')}
 </style>
 <header class="topnav"><div class="topnav-in">
-  <a class="logo" href="#today" aria-label="WSA Reps home">reps<span class="cur">_</span><small>by WSA</small></a>
+  <a class="logo" href="#today" aria-label="WSA Reps home"><span class="mark">WSA</span>WSA Reps</a>
   <nav class="navlinks" id="navlinks" aria-label="Main"></nav>
   <div class="nav-right"><span class="sync" id="sync"></span><span class="stat-pill fire" id="np-streak" title="Day streak"></span><span class="stat-pill xp" id="np-xp" title="Total XP"></span><a class="avatar" id="who" href="#prefs" aria-label="Prefs"></a></div>
 </div></header>

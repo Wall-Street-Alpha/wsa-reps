@@ -116,7 +116,7 @@ Pages.path = el => {
       const icon = st === 'crown' ? I.crown : st === 'done' ? I.check : st === 'current' ? I.star : `<span>${li + 1}</span>`;
       return `<button class="node ${st}" style="--x:${x}px;--c:${c1};--cs:${c2}" data-unit="${ui}" data-lesson="${li}" aria-label="${h(u.name)} lesson ${li + 1}">${icon}</button><div class="node-label" style="--x:${x}px">Lesson ${li + 1} · ${ls.length} questions</div>`;
     }).join('');
-    return `<section class="unit"><div class="unit-head" style="background:${c1}"><div><div class="sub">Unit ${ui + 1} · ${h(u.track)}</div><h2>${h(u.name)}</h2></div><div class="row"><span class="sub">${u.mastery}%</span><button class="btn sm" style="background:rgba(255,255,255,.2);color:#fff;border-color:rgba(0,0,0,.15)" data-drill="${h(u.name)}">Practice</button></div></div><div class="trail">${nodes}</div></section>`;
+    return `<section class="unit"><div class="unit-head" style="background:${c1}"><div><div class="sub">Unit ${ui + 1} · ${h(u.track)}</div><h2>${h(u.name)}</h2></div><div class="row"><span class="sub">${u.mastery}%</span><button class="btn sm" style="background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.35)" data-drill="${h(u.name)}">Practice</button></div></div><div class="trail">${nodes}</div></section>`;
   };
   el.innerHTML = `<div class="page" style="max-width:620px"><div class="hello"><div class="eyebrow">learn</div><h1>Learning path</h1><p class="muted">Fit questions first, then technicals. Each unit is a topic and each lesson is 8 questions. Complete a lesson for a check mark; master it for a crown.</p></div>
     ${all.length ? all.map(unitHtml).join('') : `<div class="card empty"><h2>No questions yet</h2><a class="btn go" href="#import">Import a question bank</a></div>`}</div>`;
@@ -158,7 +158,7 @@ Pages.problems = el => {
   };
   const row = (c, n, isDq) => {
     const s = S.st[c.id], m = SRS.mastery(s), acc = acceptance(c.id);
-    return `<tr class="${isDq ? 'dq-row' : ''}"><td>${isDq ? `<span class="stat-pill" style="color:var(--brand);padding:2px 8px;font-size:.7rem">daily</span>` : statusIcon(s)}</td><td><a class="q-link" href="#p-${c.id}">${n}. ${h(c.q)}</a></td><td class="mono faint" style="font-size:.84rem">${acc == null ? '–' : acc + '%'}</td><td>${diffText(c.difficulty)}</td><td style="min-width:90px"><div class="bar"><i style="width:${m}%"></i></div></td><td class="mono" style="white-space:nowrap;font-size:.8rem">${relDue(s)}</td><td><button class="star ${S.star[c.id] ? 'on' : ''}" data-star="${c.id}" aria-label="Star">${S.star[c.id] ? I.star : I.starO}</button></td></tr>`;
+    return `<tr class="${isDq ? 'dq-row' : ''}"><td>${isDq ? `<span class="stat-pill" style="color:var(--brand);padding:2px 8px;font-size:.7rem">Daily</span>` : statusIcon(s)}</td><td><a class="q-link" href="#p-${c.id}">${n}. ${h(c.q)}</a></td><td class="mono faint" style="font-size:.84rem">${acc == null ? '–' : acc + '%'}</td><td>${diffText(c.difficulty)}</td><td style="min-width:90px"><div class="bar"><i style="width:${m}%"></i></div></td><td class="mono" style="white-space:nowrap;font-size:.8rem">${relDue(s)}</td><td><button class="star ${S.star[c.id] ? 'on' : ''}" data-star="${c.id}" aria-label="Star">${S.star[c.id] ? I.star : I.starO}</button></td></tr>`;
   };
   const draw = () => {
     const list = filtered();
@@ -273,7 +273,7 @@ function confetti() {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const cv = document.createElement('canvas'); cv.className = 'confetti'; document.body.append(cv);
   const ctx = cv.getContext('2d'), W = cv.width = innerWidth, H = cv.height = innerHeight;
-  const cols = ['#58cc02', '#ff9600', '#1cb0f6', '#ff4b4b', '#ffc800', '#ce82ff', '#ff86d0'];
+  const cols = ['#1f4e8c', '#2f6f73', '#a8801f', '#4a5d78', '#1e7a55'];
   const ps = Array.from({ length: 140 }, () => ({ x: W / 2 + (Math.random() - .5) * 200, y: H / 3, vx: (Math.random() - .5) * 12, vy: -Math.random() * 12 - 4, r: Math.random() * 6 + 4, c: cols[Math.floor(Math.random() * cols.length)], a: Math.random() * 6 }));
   let t = 0;
   (function f() {
