@@ -17,7 +17,7 @@ if (process.env.SUPABASE_URL) cfg.supabaseUrl = process.env.SUPABASE_URL;
 if (process.env.SUPABASE_PUBLISHABLE_KEY) cfg.supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY;
 const target = process.argv[2] || 'artifact';
 const cfgJs = target === 'site' ? `window.WSA_CONFIG = ${JSON.stringify(cfg)};` : 'window.WSA_CONFIG = {};';
-const js = [cfgJs, lib, r('app/store.js'), r('app/extract.js'), r('app/mascot.js'), r('app/app-core.js'), r('app/app-ui.js'), r('app/app-pages.js'), r('app/app-pages2.js')].join('\n\n');
+const js = [cfgJs + `\nwindow.WSA_BUILD = '${new Date().toISOString().slice(0, 16)}';`, lib, r('app/store.js'), r('app/telemetry.js'), r('app/extract.js'), r('app/mascot.js'), r('app/app-core.js'), r('app/app-ui.js'), r('app/app-pages.js'), r('app/app-pages2.js')].join('\n\n');
 const html = `<title>WSA Reps</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">

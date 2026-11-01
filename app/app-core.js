@@ -1,6 +1,6 @@
 // App state, data operations, and gamification rules.
 const DAY_MS = 86400000;
-const S = { ready: false, profile: null, decks: [], cards: [], byId: new Map(), st: {}, star: {}, notes: {}, logs: {}, viewer: '' };
+const S = { sharedTags: {}, myTags: {}, ready: false, profile: null, decks: [], cards: [], byId: new Map(), st: {}, star: {}, notes: {}, logs: {}, viewer: '' };
 const $ = (sel, el = document) => el.querySelector(sel);
 const h = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const rid = (n = 6) => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => 'abcdefghijkmnpqrstuvwxyz23456789'[b % 32]).join('');
@@ -8,6 +8,19 @@ const dayKey = (t = Date.now()) => { const d = new Date(t); return `${d.getFullY
 const monthKey = (t = Date.now()) => { const d = new Date(t); return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`; };
 const levelOf = xp => Math.floor(Math.sqrt(xp / 50)) + 1;
 const xpForLevel = l => 50 * (l - 1) * (l - 1);
+
+const BANKS = ['Goldman Sachs', 'Morgan Stanley', 'J.P. Morgan', 'Bank of America', 'Citi', 'Barclays', 'Deutsche Bank', 'UBS', 'Wells Fargo', 'RBC', 'Jefferies', 'Evercore', 'Lazard', 'Centerview', 'PJT Partners', 'Moelis', 'Perella Weinberg', 'Guggenheim', 'Houlihan Lokey', 'Qatalyst', 'Greenhill', 'William Blair', 'Piper Sandler', 'Harris Williams', 'Lincoln International'];
+function qhash(text) {
+  const t = String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 160);
+  let h1 = 5381, h2 = 52711;
+  for (let i = 0; i < t.length; i++) { const c = t.charCodeAt(i); h1 = (h1 * 33) ^ c; h2 = (h2 * 31) ^ c; }
+  return 'q' + (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
+}
+function banksOf(card) {
+  const set = new Set([...(card.banks || []), ...(S.sharedTags[qhash(card.q)] || []), ...(S.myTags[card.id] || [])]);
+  return [...set].sort((a, b) => BANKS.indexOf(a) - BANKS.indexOf(b));
+}
+function saveMyTags() { Store.put('tags', { m: S.myTags }); }
 
 const DEFAULT_PROFILE = () => ({ name: '', xp: 0, streak: 0, best: 0, lastDay: null, freezes: 1, goal: 50, newPerDay: 15, retention: 0.9, created: Date.now(), ach: {}, intro: { day: null, count: 0 }, mocks: 0, daily: {}, decks: [] });
 
@@ -33,6 +46,8 @@ async function loadData() {
     Object.assign(S.notes, docs['nt-' + meta.id]?.m || {});
   }
   for (const [k, v] of Object.entries(docs)) if (k.startsWith('lg-') && v && Array.isArray(v.e)) S.logs[k.slice(3)] = v.e;
+  S.myTags = docs.tags?.m || {};
+  S.sharedTags = await Store.loadSharedTags();
   if (fresh) {
     await createDeck('Starter Deck', 'Built in', SEED.map(c => ({ ...c })), 'starter');
     saveProfile();
@@ -49,7 +64,7 @@ function addDeckToMemory(meta, cards) {
 
 async function createDeck(name, source, rawCards, forcedId) {
   const id = forcedId || rid(6);
-  const cards = rawCards.map((c, i) => ({ id: `${id}-${i.toString(36)}`, q: c.q, a: c.a, category: c.category || 'General', difficulty: c.difficulty || 'Medium', track: c.track || 'Behavioral', pos: i }));
+  const cards = rawCards.map((c, i) => ({ id: `${id}-${i.toString(36)}`, q: c.q, a: c.a, category: c.category || 'General', difficulty: c.difficulty || 'Medium', track: c.track || 'Behavioral', pos: i, ...(c.banks && c.banks.length ? { banks: c.banks } : {}) }));
   const chunks = Store.chunkCards(cards);
   const meta = { id, name, source, createdAt: Date.now(), chunks: chunks.length, count: cards.length };
   chunks.forEach((part, i) => Store.put(`dk-${id}-${i}`, { cards: part }));

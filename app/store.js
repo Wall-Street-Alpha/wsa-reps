@@ -69,7 +69,34 @@ const Store = (() => {
     const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
     if (error) throw error;
   }
-  async function signOut() { if (sb) await sb.auth.signOut(); location.hash = ''; location.reload(); }
+  async function signOut() { try { await Telemetry.flush(); Telemetry.clear(); } catch {} if (sb) await sb.auth.signOut(); location.hash = ''; location.reload(); }
+
+  async function loadSharedTags() {
+    if (mode !== 'account' || !sbUser) return {};
+    const key = `acct:${sbUser.id}:sharedTags`;
+    try {
+      const { data, error } = await sb.from('question_tags').select('qhash,banks');
+      if (error) throw error;
+      const out = {}; for (const r of data) out[r.qhash] = r.banks || [];
+      lsSet(key, out); return out;
+    } catch { return lsGet(key) || {}; }
+  }
+  async function setSharedTags(qh, question, banks) {
+    const { error } = await sb.from('question_tags').upsert({ qhash: qh, question: question.slice(0, 500), banks, updated_by: sbUser.id, updated_at: new Date().toISOString() });
+    if (error) throw error;
+  }
+  async function insertEvents(rows) {
+    const { error } = await sb.from('app_events').insert(rows);
+    if (error) throw error;
+  }
+  async function reportError(row) {
+    if (!sb) return;
+    try { await sb.from('app_errors').insert(sbUser ? { ...row, user_id: sbUser.id } : row); } catch {}
+  }
+  const rpc = async (fn, args) => { const { data, error } = await sb.rpc(fn, args); if (error) throw error; return data; };
+  const adminActivity = days => rpc('admin_activity', { days });
+  const adminEventCounts = days => rpc('admin_event_counts', { days });
+  const adminErrors = lim => rpc('admin_recent_errors', { lim });
 
   async function isAdmin() {
     if (mode !== 'account' || !sbUser) return false;
@@ -242,5 +269,5 @@ const Store = (() => {
   function emit() { for (const f of listeners) f(status()); }
   const onStatus = f => { listeners.add(f); f(status()); };
 
-  return { init, loadAll, put, chunkCards, status, onStatus, viewerName, signIn, signUp, signOut, resetPassword, googleEnabled, signInGoogle, isAdmin, adminStudents, adminDocs, get email() { return sbUser?.email || ''; }, get client() { return sb; }, get userId() { return sbUser?.id || null; }, get mode() { return mode; }, lsGet, lsSet };
+  return { init, loadAll, put, chunkCards, status, onStatus, viewerName, signIn, signUp, signOut, resetPassword, googleEnabled, signInGoogle, isAdmin, adminStudents, adminDocs, loadSharedTags, setSharedTags, insertEvents, reportError, adminActivity, adminEventCounts, adminErrors, get signedIn() { return !!sbUser; }, get email() { return sbUser?.email || ''; }, get client() { return sb; }, get userId() { return sbUser?.id || null; }, get mode() { return mode; }, lsGet, lsSet };
 })();

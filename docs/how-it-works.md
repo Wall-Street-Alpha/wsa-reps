@@ -35,11 +35,39 @@ Supabase is a hosted Postgres database with a few extras switched on: user accou
 
 **Row-level security (RLS)** is what keeps students apart. The rules from `supabase/setup.sql` say a signed-in person can only read and write rows where `user_id` is their own id. The publishable key in the app is safe to be public because of these rules.
 
-**Admins.** `supabase/admin-setup.sql` adds a small `app_admins` table and three functions. Only people listed in `app_admins` can call them, and they power the Admin page. Students still can't see each other.
+**Admins.** `supabase/admin-setup.sql` adds:
+- an `app_admins` table
+- the `question_tags`, `app_events` and `app_errors` tables
+- the admin-only functions behind the Admin page
+
+Only people listed in `app_admins` can call those functions. Students still can't see each other, and can't read events or errors. The file is safe to run again after updates.
 
 **SQL Editor** lets you ask the database questions directly. `supabase/admin-queries.sql` has ready-made queries: sign-ups, activity per student, reviews per day, imported decks and mock interviews.
 
 **Logs** (left sidebar) shows sign-in attempts and API calls if something looks wrong.
+
+## Bank tags
+
+- **Shared tags:** each question can be tagged with the banks that ask it, like LeetCode's company tags. Tags you add as an admin are shared with every student and stored in the `question_tags` table.
+- **Private tags:** a student can tag a question with a bank that asked them, which only they see.
+- **Imports:** CSV files can include a `banks` column, for example `Goldman Sachs; Evercore`.
+- **Filters:** the Problems page filters by topic, bank, difficulty, status and deck.
+
+## Logging and monitoring
+
+Standard practice for an app this size is three layers. All three are in place except the uptime ping.
+
+| Layer | What it answers | Where |
+|---|---|---|
+| **Product events** | Who is using it and what they do | Admin > Activity. Raw rows in Supabase table `app_events`. |
+| **Error reports** | Is anything breaking for students, and on which device | Admin > Errors. Raw rows in `app_errors`. |
+| **Platform logs** | Sign-in failures, API errors, deploy failures | Supabase > Logs; GitHub > Actions |
+
+- **Events logged:** app opened (and whether it's the installed phone app), signed up, signed in, session completed, mock interview completed, deck imported, bank tagged, install clicked. No answer text is recorded.
+- **How events are sent:** in batches, and kept on the phone until there's a connection.
+- **Error reports:** capped at five per visit, so one bad bug can't flood the table. Each one records the message, page, device and app version, so you can tell which deploy caused it.
+- **Recommended next step:** set up a free uptime check at uptimerobot.com that loads the site and calls Supabase every few minutes. It emails you if either goes down, and the regular calls also stop Supabase from pausing the free project.
+- **For more detailed crash reports later:** add Sentry (free tier). The `app_errors` table covers the basics for now.
 
 ## Offline use on phones
 
@@ -65,6 +93,8 @@ Supabase is a hosted Postgres database with a few extras switched on: user accou
 | How is each student doing? | Admin page in the app (sign in with your admin account) |
 | Raw progress for one student | Supabase > Table Editor > user_docs, filter by `user_id` |
 | Activity trends | Supabase > SQL Editor, `admin-queries.sql` query 4 |
+| Is anything breaking? | Admin page > Errors |
+| What are people doing? | Admin page > Activity |
 | Did my change deploy? | GitHub > Actions |
 | Is the site up? | Open the site; GitHub > Settings > Pages shows the URL |
 

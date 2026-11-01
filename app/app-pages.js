@@ -141,15 +141,19 @@ Pages.path = el => {
   el.querySelectorAll('[data-drill]').forEach(b => b.onclick = () => startSession({ mode: 'category', ids: buildCategoryQueue(b.dataset.drill), title: b.dataset.drill }));
 };
 
-const PF = { q: '', deck: '', cat: '', diff: '', status: '', starred: false, sort: 'num', dir: 1 };
+const PF = { q: '', deck: '', cat: '', diff: '', status: '', bank: '', starred: false, sort: 'num', dir: 1 };
 Pages.problems = el => {
   const catCount = new Map();
   for (const c of S.cards) catCount.set(c.category, (catCount.get(c.category) || 0) + 1);
   const dq = dailyQuestion();
+  const bankCount = new Map();
+  for (const c of S.cards) for (const b of banksOf(c)) bankCount.set(b, (bankCount.get(b) || 0) + 1);
+  const bankOpts = [...BANKS.filter(b => bankCount.has(b)), ...BANKS.filter(b => !bankCount.has(b))];
   el.innerHTML = `<div class="page"><div class="row spread"><div class="hello"><div class="eyebrow">Problem set</div><h1>Problems</h1></div><div class="row"><button class="btn" id="pick">${I.bolt} Random</button><a class="btn brand" href="#import">Import</a></div></div>
     <div class="topics" role="toolbar" aria-label="Topics"><button class="topic" data-cat="" aria-pressed="${!PF.cat}">All topics <b>${S.cards.length}</b></button>${[...catCount].map(([c, n]) => `<button class="topic" data-cat="${h(c)}" aria-pressed="${PF.cat === c}">${h(c)} <b>${n}</b></button>`).join('')}</div>
     <div class="filters">
       <input class="input search" id="f-q" type="search" placeholder="Search questions" value="${h(PF.q)}" aria-label="Search">
+      <select class="input" id="f-bank" aria-label="Bank"><option value="">All banks</option>${bankOpts.map(b => `<option value="${h(b)}" ${PF.bank === b ? 'selected' : ''}>${h(b)}${bankCount.has(b) ? ` (${bankCount.get(b)})` : ''}</option>`).join('')}</select>
       <select class="input" id="f-deck" aria-label="Deck"><option value="">All decks</option>${S.decks.map(d => `<option value="${d.id}" ${PF.deck === d.id ? 'selected' : ''}>${h(d.name)}</option>`).join('')}</select>
       <select class="input" id="f-diff" aria-label="Difficulty"><option value="">Difficulty</option>${['Easy', 'Medium', 'Hard'].map(d => `<option ${PF.diff === d ? 'selected' : ''}>${d}</option>`).join('')}</select>
       <select class="input" id="f-status" aria-label="Status"><option value="">Status</option>${[['new', 'Todo'], ['learning', 'Attempted'], ['mastered', 'Solved']].map(([v, l]) => `<option value="${v}" ${PF.status === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
@@ -164,7 +168,7 @@ Pages.problems = el => {
     const q = PF.q.toLowerCase();
     let list = orderedCards().map(c => ({ c, n: nums.get(c.id) })).filter(({ c }) =>
       (!PF.deck || c.deck === PF.deck) && (!PF.cat || c.category === PF.cat) && (!PF.diff || c.difficulty === PF.diff) &&
-      (!PF.status || SRS.status(S.st[c.id]) === PF.status) && (!PF.starred || S.star[c.id]) &&
+      (!PF.status || SRS.status(S.st[c.id]) === PF.status) && (!PF.starred || S.star[c.id]) && (!PF.bank || banksOf(c).includes(PF.bank)) &&
       (!q || c.q.toLowerCase().includes(q) || c.a.toLowerCase().includes(q)));
     const key = { num: x => x.n, mastery: x => SRS.mastery(S.st[x.c.id]), due: x => { const s = S.st[x.c.id]; return !s || s.state === 0 ? Infinity : s.due; } }[PF.sort];
     list.sort((a, b) => (key(a) - key(b)) * PF.dir || a.n - b.n);
@@ -172,25 +176,45 @@ Pages.problems = el => {
   };
   const row = (c, n, isDq) => {
     const s = S.st[c.id], m = SRS.mastery(s), acc = acceptance(c.id);
-    return `<tr class="${isDq ? 'dq-row' : ''}"><td>${isDq ? `<span class="stat-pill" style="color:var(--brand);padding:2px 8px;font-size:.7rem">Daily</span>` : statusIcon(s)}</td><td><a class="q-link" href="#p-${c.id}">${n}. ${h(c.q)}</a></td><td class="mono faint" style="font-size:.84rem">${acc == null ? '–' : acc + '%'}</td><td>${diffText(c.difficulty)}</td><td style="min-width:90px"><div class="bar"><i style="width:${m}%"></i></div></td><td class="mono" style="white-space:nowrap;font-size:.8rem">${relDue(s)}</td><td><button class="star ${S.star[c.id] ? 'on' : ''}" data-star="${c.id}" aria-label="Star">${S.star[c.id] ? I.star : I.starO}</button></td></tr>`;
+    return `<tr class="${isDq ? 'dq-row' : ''}"><td>${isDq ? `<span class="stat-pill" style="color:var(--brand);padding:2px 8px;font-size:.7rem">Daily</span>` : statusIcon(s)}</td><td><a class="q-link" href="#p-${c.id}">${n}. ${h(c.q)}</a>${(() => { const bs = banksOf(c); return bs.length ? `<div class="bank-pills">${bs.slice(0, 3).map(b => `<span class="bank-pill">${h(b)}</span>`).join('')}${bs.length > 3 ? `<span class="bank-pill more">+${bs.length - 3}</span>` : ''}</div>` : ''; })()}</td><td class="mono faint" style="font-size:.84rem">${acc == null ? '–' : acc + '%'}</td><td>${diffText(c.difficulty)}</td><td style="min-width:90px"><div class="bar"><i style="width:${m}%"></i></div></td><td class="mono" style="white-space:nowrap;font-size:.8rem">${relDue(s)}</td><td><button class="star ${S.star[c.id] ? 'on' : ''}" data-star="${c.id}" aria-label="Star">${S.star[c.id] ? I.star : I.starO}</button></td></tr>`;
   };
   const draw = () => {
     const list = filtered();
-    const plain = !PF.q && !PF.deck && !PF.cat && !PF.diff && !PF.status && !PF.starred;
+    const plain = !PF.q && !PF.deck && !PF.cat && !PF.diff && !PF.status && !PF.starred && !PF.bank;
     $('#count', el).textContent = `${list.length} of ${S.cards.length} questions`;
     rowsEl.innerHTML = list.length ? (plain && dq ? row(dq, nums.get(dq.id), true) : '') + list.slice(0, 600).map(({ c, n }) => row(c, n, false)).join('')
       : `<tr><td colspan="7"><div class="empty"><b>Nothing matches. Loosen the filters.</b><button class="btn sm" id="clear">Clear filters</button></div></td></tr>`;
     rowsEl.querySelectorAll('[data-star]').forEach(b => b.onclick = () => { toggleStar(b.dataset.star); draw(); });
-    const clr = $('#clear', rowsEl); if (clr) clr.onclick = () => { Object.assign(PF, { q: '', deck: '', cat: '', diff: '', status: '', starred: false }); Pages.problems(el); };
+    const clr = $('#clear', rowsEl); if (clr) clr.onclick = () => { Object.assign(PF, { q: '', deck: '', cat: '', diff: '', status: '', bank: '', starred: false }); Pages.problems(el); };
   };
   const bind = (id, k) => { $(id, el).oninput = e => { PF[k] = e.target.value; draw(); }; };
-  bind('#f-q', 'q'); bind('#f-deck', 'deck'); bind('#f-diff', 'diff'); bind('#f-status', 'status');
+  bind('#f-q', 'q'); bind('#f-bank', 'bank'); bind('#f-deck', 'deck'); bind('#f-diff', 'diff'); bind('#f-status', 'status');
   $('#f-sort', el).oninput = e => { PF.sort = e.target.value; PF.dir = 1; draw(); };
   el.querySelectorAll('[data-cat]').forEach(b => b.onclick = () => { PF.cat = b.dataset.cat; Pages.problems(el); });
   $('#f-star', el).onclick = () => { PF.starred = !PF.starred; Pages.problems(el); };
   $('#pick', el).onclick = () => { const l = filtered(); if (l.length) location.hash = 'p-' + l[Math.floor(Math.random() * l.length)].c.id; };
   draw();
 };
+
+function drawAsked(box, card, open = false) {
+  const qh = qhash(card.q), shared = S.sharedTags[qh] || [], mine = S.myTags[card.id] || [], all = banksOf(card);
+  const canShare = S.isAdmin;
+  box.innerHTML = `<div class="row" style="gap:6px;align-items:center"><span class="faint" style="font-size:.82rem;font-weight:800">Asked at</span>${all.length ? all.map(b => `<span class="bank-pill">${h(b)}</span>`).join('') : '<span class="faint" style="font-size:.82rem">No banks tagged yet</span>'}<button class="btn sm ghost" id="ask-edit">${open ? 'Done' : all.length ? 'Edit' : '+ Tag a bank'}</button></div>
+    ${open ? `<div class="grid" style="gap:8px;margin-top:8px"><p class="faint" style="font-size:.8rem">${canShare ? 'As an admin, your tags are shared with every student.' : 'Tag the banks that asked you this. Your tags are private to you.'}</p><div class="chips">${BANKS.map(b => { const on = canShare ? shared.includes(b) : mine.includes(b); const locked = !canShare && (shared.includes(b) || (card.banks || []).includes(b)); return `<button class="fw-chip ${on || locked ? '' : 'used'}" data-bank="${h(b)}" ${locked ? 'disabled title="Tagged by WSA"' : ''} aria-pressed="${on || locked}">${on || locked ? '✓ ' : ''}${h(b)}</button>`; }).join('')}</div></div>` : ''}`;
+  $('#ask-edit', box).onclick = () => drawAsked(box, card, !open);
+  box.querySelectorAll('[data-bank]').forEach(btn => btn.onclick = async () => {
+    const b = btn.dataset.bank;
+    if (canShare) {
+      const next = shared.includes(b) ? shared.filter(x => x !== b) : [...shared, b];
+      S.sharedTags[qh] = next; drawAsked(box, card, true);
+      try { await Store.setSharedTags(qh, card.q, next); Telemetry.track('bank_tag', { shared: true }); } catch (e) { App.toast('Could not save the tag. Try again.'); S.sharedTags[qh] = shared; drawAsked(box, card, true); }
+    } else {
+      S.myTags[card.id] = mine.includes(b) ? mine.filter(x => x !== b) : [...mine, b];
+      if (!S.myTags[card.id].length) delete S.myTags[card.id];
+      saveMyTags(); Telemetry.track('bank_tag', { shared: false }); drawAsked(box, card, true);
+    }
+  });
+}
 
 function toggleStar(id) {
   if (S.star[id]) delete S.star[id]; else S.star[id] = true;
@@ -210,6 +234,7 @@ Pages.problem = (el, id) => {
       <div class="pane"><div class="pane-tabs" role="tablist"><button role="tab" data-t="desc" aria-selected="${WS_TAB === 'desc'}">${I.problems}Description</button><button role="tab" data-t="notes" aria-selected="${WS_TAB === 'notes'}">${I.prefs}Notes</button><button role="tab" data-t="subs" aria-selected="${WS_TAB === 'subs'}">${I.progress}Submissions <span class="faint mono">${attempts.length}</span></button></div>
         <div class="pane-body" data-p="desc" ${WS_TAB === 'desc' ? '' : 'hidden'}><div class="row spread" style="align-items:flex-start"><div class="q-title">${i + 1}. ${h(card.q)}</div><button class="star ${S.star[id] ? 'on' : ''}" id="ws-star" aria-label="Star">${S.star[id] ? I.star : I.starO}</button></div>
           <div class="row" style="gap:6px">${diffPill(card.difficulty)}<span class="pill">${h(card.category)}</span><span class="pill">${h(deckName(card.deck))}</span></div>
+          <div class="asked" id="ws-asked"></div>
           <div class="grid cols-3" style="gap:8px"><div class="tick"><b style="font-size:1.1rem">${acc == null ? '–' : acc + '%'}</b><span>acceptance</span></div><div class="tick"><b style="font-size:1.1rem">${SRS.mastery(S.st[id])}%</b><span>mastery</span></div><div class="tick"><b style="font-size:1.1rem">${attempts.length}</b><span>attempts</span></div></div>
           <p class="faint" style="font-size:.86rem">Answer in the editor as you would in the interview. Run checks which key concepts you covered. Submit shows the model answer and schedules your next review.</p></div>
         <div class="pane-body" data-p="notes" ${WS_TAB === 'notes' ? '' : 'hidden'}><label class="field" for="ws-notes">My notes <span class="faint" style="font-weight:500">saved to your account</span></label><textarea class="input" id="ws-notes" style="min-height:220px" placeholder="Your own framing, a story to use, a number to remember.">${h(S.notes[id] || '')}</textarea></div>
@@ -219,6 +244,7 @@ Pages.problem = (el, id) => {
     </div></div>`;
   el.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { WS_TAB = b.dataset.t; el.querySelectorAll('[data-t]').forEach(x => x.setAttribute('aria-selected', x === b)); el.querySelectorAll('[data-p]').forEach(p => p.hidden = p.dataset.p !== WS_TAB); });
   $('#ws-star', el).onclick = () => { toggleStar(id); Pages.problem(el, id); };
+  drawAsked($('#ws-asked', el), card);
   $('#ws-notes', el).oninput = e => { S.notes[id] = e.target.value; saveNotes(card.deck); };
   cardFlow($('#ws-flow', el), id, {
     mode: 'practice', layout: 'ws',
@@ -268,6 +294,7 @@ Pages.session = el => {
 function sessionDone(el) {
   const ss = SESSION;
   finishSessionBonus(); ss.xp += 20;
+  Telemetry.track('session_complete', { mode: ss.mode, cards: ss.done, accuracy: ss.rated ? Math.round(100 * ss.good / ss.rated) : 0, minutes: Math.round((Date.now() - ss.started) / 60000) });
   if (ss.mode === 'mock') { S.profile.mocks = (S.profile.mocks || 0) + 1; checkAchievements(); saveProfile(); }
   const mins = Math.max(1, Math.round((Date.now() - ss.started) / 60000));
   const acc = ss.rated ? Math.round(100 * ss.good / ss.rated) : 0;

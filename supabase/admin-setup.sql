@@ -79,6 +79,104 @@ grant execute on function public.is_app_admin() to authenticated;
 grant execute on function public.admin_students() to authenticated;
 grant execute on function public.admin_student_docs(uuid) to authenticated;
 
+-- ===== Bank tags: which banks ask each question (admins edit, everyone signed in reads) =====
+create table if not exists public.question_tags (
+  qhash text primary key,
+  question text,
+  banks text[] not null default '{}',
+  updated_by uuid references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+alter table public.question_tags enable row level security;
+drop policy if exists "Signed-in users read question tags" on public.question_tags;
+drop policy if exists "Admins add question tags" on public.question_tags;
+drop policy if exists "Admins update question tags" on public.question_tags;
+drop policy if exists "Admins delete question tags" on public.question_tags;
+create policy "Signed-in users read question tags" on public.question_tags for select to authenticated using (true);
+create policy "Admins add question tags" on public.question_tags for insert to authenticated with check (public.is_app_admin());
+create policy "Admins update question tags" on public.question_tags for update to authenticated using (public.is_app_admin()) with check (public.is_app_admin());
+create policy "Admins delete question tags" on public.question_tags for delete to authenticated using (public.is_app_admin());
+grant select, insert, update, delete on public.question_tags to authenticated;
+
+-- ===== Observability: product events and client errors =====
+create table if not exists public.app_events (
+  id bigint generated always as identity primary key,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  name text not null check (char_length(name) <= 60),
+  props jsonb not null default '{}' check (pg_column_size(props) < 4000),
+  created_at timestamptz not null default now()
+);
+create index if not exists app_events_created_idx on public.app_events (created_at desc);
+alter table public.app_events enable row level security;
+drop policy if exists "Users add their own events" on public.app_events;
+create policy "Users add their own events" on public.app_events for insert to authenticated with check ((select auth.uid()) = user_id);
+grant insert on public.app_events to authenticated;
+
+create table if not exists public.app_errors (
+  id bigint generated always as identity primary key,
+  user_id uuid default auth.uid() references auth.users(id) on delete set null,
+  message text not null check (char_length(message) <= 1000),
+  stack text check (char_length(stack) <= 4000),
+  url text check (char_length(url) <= 500),
+  user_agent text check (char_length(user_agent) <= 400),
+  app_version text check (char_length(app_version) <= 40),
+  created_at timestamptz not null default now()
+);
+create index if not exists app_errors_created_idx on public.app_errors (created_at desc);
+alter table public.app_errors enable row level security;
+drop policy if exists "Users report errors" on public.app_errors;
+drop policy if exists "Visitors report errors" on public.app_errors;
+create policy "Users report errors" on public.app_errors for insert to authenticated with check (user_id is null or (select auth.uid()) = user_id);
+create policy "Visitors report errors" on public.app_errors for insert to anon with check (user_id is null);
+grant insert on public.app_errors to authenticated, anon;
+
+create or replace function public.admin_activity(days int default 14)
+returns table (day date, active_users int, sign_ups int, sessions int, events int)
+language plpgsql stable security definer set search_path = public, auth as $$
+#variable_conflict use_column
+begin
+  if not public.is_app_admin() then raise exception 'not an admin'; end if;
+  return query
+  with d as (select generate_series((now() - make_interval(days => days - 1))::date, now()::date, interval '1 day')::date as dd)
+  select d.dd,
+    (select count(distinct e.user_id) from public.app_events e where e.created_at::date = d.dd)::int,
+    (select count(*) from auth.users u where u.created_at::date = d.dd)::int,
+    (select count(*) from public.app_events e where e.created_at::date = d.dd and e.name = 'session_complete')::int,
+    (select count(*) from public.app_events e where e.created_at::date = d.dd)::int
+  from d order by d.dd;
+end $$;
+
+create or replace function public.admin_event_counts(days int default 7)
+returns table (name text, events int, users int)
+language plpgsql stable security definer set search_path = public as $$
+#variable_conflict use_column
+begin
+  if not public.is_app_admin() then raise exception 'not an admin'; end if;
+  return query
+  select e.name, count(*)::int, count(distinct e.user_id)::int
+  from public.app_events e where e.created_at > now() - make_interval(days => days)
+  group by e.name order by count(*) desc;
+end $$;
+
+create or replace function public.admin_recent_errors(lim int default 50)
+returns table (created_at timestamptz, email text, message text, url text, user_agent text, app_version text)
+language plpgsql stable security definer set search_path = public, auth as $$
+#variable_conflict use_column
+begin
+  if not public.is_app_admin() then raise exception 'not an admin'; end if;
+  return query
+  select r.created_at, u.email::text, r.message, r.url, r.user_agent, r.app_version
+  from public.app_errors r left join auth.users u on u.id = r.user_id
+  order by r.created_at desc limit lim;
+end $$;
+
+revoke all on function public.admin_activity(int) from public, anon;
+revoke all on function public.admin_event_counts(int) from public, anon;
+revoke all on function public.admin_recent_errors(int) from public, anon;
+grant execute on function public.admin_activity(int) to authenticated;
+grant execute on function public.admin_event_counts(int) to authenticated;
+grant execute on function public.admin_recent_errors(int) to authenticated;
+
 -- Make yourself an admin. Replace the email, then run this line (sign up in the app first).
 insert into public.app_admins (user_id)
 select id from auth.users where email = 'YOUR_EMAIL_HERE'

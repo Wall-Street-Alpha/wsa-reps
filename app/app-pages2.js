@@ -59,6 +59,7 @@ function mockReview(el) {
     const avgCov = answered.length ? Math.round(answered.reduce((t, x) => t + x.cov, 0) / answered.length) : null;
     const avgSecs = Math.round(rows.reduce((t, x) => t + x.secs, 0) / n);
     const pct = good / n;
+    Telemetry.track('mock_complete', { questions: n, good });
     const head = pct >= 0.8 ? 'Strong performance.' : pct >= 0.5 ? 'Solid, with a few to tighten.' : 'Worth another pass on these.';
     MOCK = null;
     el.innerHTML = `<div class="page" style="max-width:820px"><div class="card done-hero">${boSays(pct >= 0.5 ? 'cheer' : 'gentle', h(pct >= 0.5 ? 'Nice work in the room. Review the misses and run it again soon.' : 'Tough set. Review these and they\'ll come back easier.'), 96)}<div class="eyebrow">Mock interview complete</div><div class="big-num">${good} of ${n}</div><h1>${head}</h1><p class="muted">Answered well, based on your own ratings. Every question is now on your review schedule.</p>
@@ -79,7 +80,7 @@ Pages.import = el => {
   el.innerHTML = `<div class="page"><div class="hello"><div class="eyebrow">Import</div><h1>Import a question bank</h1><p class="muted">PDF, Word, text, CSV or JSON. Questions and answers are extracted in your browser; the file itself is never uploaded.</p></div>
     <div class="tabs" role="tablist"><button role="tab" aria-selected="true" data-tab="file">Upload a file</button><button role="tab" aria-selected="false" data-tab="paste">Paste text</button></div>
     <div id="imp-file"><label class="drop" id="drop" for="imp-input"><b style="font-size:1.05rem">Drop a file here or tap to choose</b><span class="faint">.pdf, .docx, .txt, .md, .csv, .json</span><input id="imp-input" type="file" accept=".pdf,.docx,.txt,.md,.csv,.json" hidden></label></div>
-    <div id="imp-paste" hidden class="grid" style="gap:10px"><textarea class="input" id="imp-text" style="min-height:220px" placeholder="Paste questions. Works with numbered lists (1. Question? then the answer), Q: / A: pairs, or questions ending in a question mark."></textarea><button class="btn go" id="imp-parse" style="justify-self:start">Find questions</button></div>
+    <div id="imp-paste" hidden class="grid" style="gap:10px"><textarea class="input" id="imp-text" style="min-height:220px" placeholder="Paste questions. Works with numbered lists (1. Question? then the answer), Q: / A: pairs, or questions ending in a question mark. CSV files can include a banks column (for example: Goldman Sachs; Evercore)."></textarea><button class="btn go" id="imp-parse" style="justify-self:start">Find questions</button></div>
     <div id="imp-status"></div><div id="imp-preview"></div></div>`;
   el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
     el.querySelectorAll('[data-tab]').forEach(x => x.setAttribute('aria-selected', x === b));
@@ -113,9 +114,13 @@ async function handleFile(el, file) {
     st.innerHTML = `<div class="banner">Could not read that file: ${h(e && e.message || e)}. Try saving it as PDF or DOCX, or paste the text instead.</div>`;
   }
 }
+function splitBanks(v) {
+  const list = Array.isArray(v) ? v : String(v || '').split(/[;|,]/);
+  return list.map(x => String(x).trim()).filter(Boolean).map(x => BANKS.find(b => b.toLowerCase() === x.toLowerCase()) || x);
+}
 function fromJson(j) {
   const arr = Array.isArray(j) ? j : Array.isArray(j.cards) ? j.cards : [];
-  return arr.map(x => ({ q: x.q || x.question, a: x.a || x.answer, category: x.category || Parser.guessCategory(x.q || x.question || '', x.a || x.answer || ''), difficulty: x.difficulty || 'Medium', track: x.track })).filter(x => x.q && x.a);
+  return arr.map(x => ({ q: x.q || x.question, a: x.a || x.answer, category: x.category || Parser.guessCategory(x.q || x.question || '', x.a || x.answer || ''), difficulty: x.difficulty || 'Medium', track: x.track, banks: splitBanks(x.banks || x.bank) })).filter(x => x.q && x.a);
 }
 function fromCsv(text) {
   const rows = []; let row = [], cur = '', q = false;
@@ -127,8 +132,8 @@ function fromCsv(text) {
   if (cur || row.length) { row.push(cur); rows.push(row); }
   const head = rows[0]?.map(x => x.trim().toLowerCase()) || [];
   const hasHead = head.includes('question');
-  const qi = hasHead ? head.indexOf('question') : 0, ai = hasHead ? head.indexOf('answer') : 1, ci = head.indexOf('category'), di = head.indexOf('difficulty');
-  return rows.slice(hasHead ? 1 : 0).filter(r => r[qi] && r[ai]).map(r => ({ q: r[qi].trim(), a: r[ai].trim(), category: (ci >= 0 && r[ci]) || Parser.guessCategory(r[qi], r[ai]), difficulty: (di >= 0 && r[di]) || 'Medium' }));
+  const qi = hasHead ? head.indexOf('question') : 0, ai = hasHead ? head.indexOf('answer') : 1, ci = head.indexOf('category'), di = head.indexOf('difficulty'), bi = Math.max(head.indexOf('banks'), head.indexOf('bank'));
+  return rows.slice(hasHead ? 1 : 0).filter(r => r[qi] && r[ai]).map(r => ({ q: r[qi].trim(), a: r[ai].trim(), category: (ci >= 0 && r[ci]) || Parser.guessCategory(r[qi], r[ai]), difficulty: (di >= 0 && r[di]) || 'Medium', banks: bi >= 0 ? splitBanks(r[bi]) : [] }));
 }
 function showPreview(el, cards, name) {
   for (const c of cards) { c.track ||= /accounting|valuation|dcf|merger|lbo|enterprise|equity|restructuring|distressed|brain|technical/i.test(c.category) ? 'Technical' : 'Behavioral'; c.on = true; }
@@ -153,6 +158,7 @@ function renderPreview(el) {
     if (!chosen.length) return;
     const meta = await createDeck(IMP.name.trim() || 'Imported deck', IMP.name, chosen);
     checkAchievements(); saveProfile();
+    Telemetry.track('import', { cards: chosen.length, source: /\.pdf$/i.test(IMP.name) ? 'pdf' : 'other' });
     IMP = null; Object.assign(PF, { q: '', cat: '', diff: '', status: '', starred: false, deck: meta.id });
     App.toast(`Added ${chosen.length} cards to ${meta.name}`);
     location.hash = 'problems';
@@ -241,19 +247,23 @@ Pages.prefs = el => {
 
 
 // Admin panel (website accounts only). Data comes from admin-only database functions.
-let ADMIN = { rows: null, q: '', sort: 'last', dir: -1 };
+let ADMIN = { rows: null, q: '', sort: 'last', dir: -1, tab: 'students' };
 const relDay = t => { if (!t) return '–'; const d = Math.floor((Date.now() - new Date(t).getTime()) / DAY_MS); return d <= 0 ? 'Today' : d === 1 ? 'Yesterday' : d < 30 ? `${d} days ago` : new Date(t).toLocaleDateString(); };
 Pages.admin = async el => {
   if (!S.isAdmin) {
     el.innerHTML = `<div class="page" style="max-width:720px"><div class="card empty">${boSays('think', 'This page is for admins.', 64)}<p class="muted">Admins are set up in Supabase with <span class="mono">supabase/admin-setup.sql</span>.</p><a class="btn" href="#today">Back home</a></div></div>`;
     return;
   }
-  el.innerHTML = `<div class="page wide"><div class="row spread"><div class="hello"><div class="eyebrow">Admin</div><h1>Students</h1></div><div class="row"><button class="btn" id="ad-refresh">Refresh</button><button class="btn" id="ad-csv">Export CSV</button></div></div><div id="ad-body"><div class="card empty"><b>Loading students...</b></div></div></div>`;
+  el.innerHTML = `<div class="page wide"><div class="row spread"><div class="hello"><div class="eyebrow">Admin</div><h1>${{ students: 'Students', activity: 'Activity', errors: 'Errors' }[ADMIN.tab]}</h1></div><div class="row"><div class="tabs" role="tablist">${[['students', 'Students'], ['activity', 'Activity'], ['errors', 'Errors']].map(([k, l]) => `<button role="tab" data-adtab="${k}" aria-selected="${ADMIN.tab === k}">${l}</button>`).join('')}</div><button class="btn" id="ad-refresh">Refresh</button>${ADMIN.tab === 'students' ? '<button class="btn" id="ad-csv">Export CSV</button>' : ''}</div></div><div id="ad-body"><div class="card empty"><b>Loading...</b></div></div></div>`;
+  el.querySelectorAll('[data-adtab]').forEach(b => b.onclick = () => { ADMIN.tab = b.dataset.adtab; Pages.admin(el); });
   $('#ad-refresh', el).onclick = () => { ADMIN.rows = null; Pages.admin(el); };
-  $('#ad-csv', el).onclick = () => exportCsv();
+  const csv = $('#ad-csv', el); if (csv) csv.onclick = () => exportCsv();
+  const body = $('#ad-body', el);
+  if (ADMIN.tab === 'activity') return drawActivity(body);
+  if (ADMIN.tab === 'errors') return drawErrors(body);
   try { if (!ADMIN.rows) ADMIN.rows = await Store.adminStudents(); }
-  catch (e) { $('#ad-body', el).innerHTML = `<div class="banner">Could not load students: ${h(e.message || e)}</div>`; return; }
-  drawAdmin($('#ad-body', el));
+  catch (e) { body.innerHTML = `<div class="banner">Could not load students: ${h(e.message || e)}</div>`; return; }
+  drawAdmin(body);
 };
 function drawAdmin(box) {
   const rows = ADMIN.rows, wk = Date.now() - 7 * DAY_MS;
@@ -275,6 +285,30 @@ function drawAdmin(box) {
   $('#ad-q', box).oninput = e => { ADMIN.q = e.target.value; drawAdmin(box); const i = $('#ad-q', box); i.focus(); i.setSelectionRange(i.value.length, i.value.length); };
   box.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { if (ADMIN.sort === b.dataset.sort) ADMIN.dir *= -1; else { ADMIN.sort = b.dataset.sort; ADMIN.dir = -1; } drawAdmin(box); });
   box.querySelectorAll('.ad-row').forEach(tr => { const go = () => location.hash = 'a-' + tr.dataset.uid; tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
+}
+const EVENT_NAMES = { app_open: 'App opened', sign_up: 'Signed up', sign_in: 'Signed in', session_complete: 'Session completed', mock_complete: 'Mock interview completed', import: 'Deck imported', bank_tag: 'Bank tagged', install_click: 'Install clicked' };
+async function drawActivity(box) {
+  let days, counts;
+  try { [days, counts] = await Promise.all([Store.adminActivity(14), Store.adminEventCounts(7)]); }
+  catch (e) { box.innerHTML = `<div class="banner">Could not load activity: ${h(e.message || e)}. Run the latest supabase/admin-setup.sql if you have not yet.</div>`; return; }
+  const today = days[days.length - 1] || {};
+  const sum = k => days.reduce((n, d) => n + (d[k] || 0), 0);
+  const label = d => new Date(d.day).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric', timeZone: 'UTC' });
+  box.innerHTML = `<div class="grid" style="gap:16px">
+    <div class="grid cols-4">${[['Active today', today.active_users || 0], ['Sign-ups, 14 days', sum('sign_ups')], ['Sessions, 14 days', sum('sessions')], ['Events, 14 days', sum('events')]].map(([l, v]) => `<div class="card stat"><span>${l}</span><b>${v}</b></div>`).join('')}</div>
+    <div class="grid cols-2">
+      <div class="card grid" style="gap:8px"><h3>Daily active students</h3>${barChart(days.map(d => d.active_users), days.map((d, i) => i % 3 === 0 ? label(d) : ''), 'var(--sky)')}</div>
+      <div class="card grid" style="gap:8px"><h3>Sign-ups per day</h3>${barChart(days.map(d => d.sign_ups), days.map((d, i) => i % 3 === 0 ? label(d) : ''), 'var(--gotit)')}</div>
+    </div>
+    <div class="card grid" style="gap:10px"><h3>What people did, last 7 days</h3>${counts.length ? `<table class="tbl"><thead><tr><th>Action</th><th>Times</th><th>People</th></tr></thead><tbody>${counts.map(c => `<tr><td>${h(EVENT_NAMES[c.name] || c.name)}</td><td class="num">${c.events}</td><td class="num">${c.users}</td></tr>`).join('')}</tbody></table>` : '<p class="muted">No activity logged yet.</p>'}</div>
+    <p class="faint" style="font-size:.8rem">Events are logged from the website only. No answer text is recorded.</p></div>`;
+}
+async function drawErrors(box) {
+  let rows;
+  try { rows = await Store.adminErrors(50); }
+  catch (e) { box.innerHTML = `<div class="banner">Could not load errors: ${h(e.message || e)}. Run the latest supabase/admin-setup.sql if you have not yet.</div>`; return; }
+  box.innerHTML = rows.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>When</th><th>Error</th><th>Who</th><th>Device</th><th>Version</th></tr></thead><tbody>${rows.map(r => `<tr><td class="faint" style="white-space:nowrap">${new Date(r.created_at).toLocaleString()}</td><td style="max-width:420px"><b>${h(r.message)}</b><div class="faint" style="font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h(r.url || '')}</div></td><td>${h(r.email || 'signed out')}</td><td class="faint" style="font-size:.78rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h(/iphone|ipad/i.test(r.user_agent) ? 'iPhone/iPad' : /android/i.test(r.user_agent) ? 'Android' : /mac/i.test(r.user_agent) ? 'Mac' : /windows/i.test(r.user_agent) ? 'Windows' : r.user_agent || '')}</td><td class="faint">${h(r.app_version || '')}</td></tr>`).join('')}</tbody></table></div>`
+    : `<div class="card empty">${boSays('cheer', 'No errors reported. Smooth sailing.', 64)}</div>`;
 }
 function exportCsv() {
   if (!ADMIN.rows) return;
@@ -351,6 +385,7 @@ async function boot() {
   S.viewer = await Store.viewerName();
   try { await loadData(); }
   catch (e) { $('#view').innerHTML = `<div class="page"><div class="card empty"><h2>Couldn't load your progress</h2><p class="muted">Check your connection, then reload the page.</p></div></div>`; return; }
+  Telemetry.track('app_open', { installed: isStandalone(), phone: matchMedia('(max-width: 900px)').matches });
   S.isAdmin = await Store.isAdmin();
   if (S.isAdmin) { $('#navlinks').insertAdjacentHTML('beforeend', `<a class="nav-link" href="#admin" data-nav="admin">${I.mock}<span>Admin</span></a>`); }
   const n = S.profile.name || S.viewer || '';
@@ -388,8 +423,8 @@ function authScreen() {
         if (!em || pw.length < 6) return draw('Enter your email and a password of at least 6 characters.');
         const btn = e.target.querySelector('[type=submit]'); btn.disabled = true; btn.textContent = 'One moment...';
         try {
-          if (modeSU) { const r = await Store.signUp(em, pw, nm); if (r.confirm) { modeSU = false; return draw('Account created. Check your email to confirm it, then sign in.', 'ok'); } }
-          else await Store.signIn(em, pw);
+          if (modeSU) { const r = await Store.signUp(em, pw, nm); if (r.confirm) { modeSU = false; return draw('Account created. Check your email to confirm it, then sign in.', 'ok'); } Telemetry.track('sign_up', { method: 'email' }); }
+          else { await Store.signIn(em, pw); Telemetry.track('sign_in', { method: 'email' }); }
           document.body.classList.remove('auth');
           resolve();
         } catch (err) { draw(/invalid login/i.test(err.message) ? 'That email and password do not match.' : err.message || 'Something went wrong. Try again.'); }
@@ -412,7 +447,7 @@ function installHelp() {
   return `<div class="install"><div class="row spread" style="align-items:flex-start;gap:10px"><div style="min-width:0"><b>Use WSA Reps like an app</b><p class="muted" style="font-size:.88rem;margin-top:4px">${steps} It opens full screen and remembers your sign-in.</p></div><div class="row" style="gap:6px">${deferredInstall ? '<button class="btn sm go" id="do-install">Install</button>' : ''}<button class="btn sm ghost" id="hide-install" aria-label="Dismiss">Not now</button></div></div></div>`;
 }
 function bindInstall(el) {
-  const i = $('#do-install', el); if (i) i.onclick = async () => { deferredInstall.prompt(); await deferredInstall.userChoice.catch(() => {}); deferredInstall = null; $('.install', el)?.remove(); };
+  const i = $('#do-install', el); if (i) i.onclick = async () => { Telemetry.track('install_click'); deferredInstall.prompt(); await deferredInstall.userChoice.catch(() => {}); deferredInstall = null; $('.install', el)?.remove(); };
   const hd = $('#hide-install', el); if (hd) hd.onclick = () => { Store.lsSet('installHidden', Date.now()); $('.install', el)?.remove(); };
 }
 
