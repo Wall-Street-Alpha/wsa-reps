@@ -58,7 +58,11 @@ async function loadData() {
 
 // Another device saved changes we had not seen: fold them into what is on screen.
 Store.onMerged((key, v) => {
-  if (key.startsWith('lg-')) S.logs[key.slice(3)] = v.e || [];
+  if (key.startsWith('lg-')) {
+    const k = key.slice(3), seen = new Map();
+    for (const e of [...(v.e || []), ...(S.logs[k] || [])]) seen.set(e[0] + '|' + e[1], e);
+    S.logs[k] = [...seen.values()].sort((a, b) => a[0] - b[0]);
+  }
   else if (key.startsWith('st-')) {
     for (const [cid, x] of Object.entries(v.m || {})) {
       const cur = S.st[cid];
