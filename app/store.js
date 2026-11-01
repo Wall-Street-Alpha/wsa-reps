@@ -256,7 +256,8 @@ const Store = (() => {
     if (key.startsWith('nt-')) return { m: { ...(remote.m || {}), ...(local.m || {}) } };
     if (key === 'profile') {
       const out = { ...remote, ...local };
-      out.xp = Math.max(local.xp || 0, remote.xp || 0);
+      out.xp = local.xpBase != null ? (remote.xp || 0) + Math.max(0, (local.xp || 0) - local.xpBase) : Math.max(local.xp || 0, remote.xp || 0);
+      out.xpBase = out.xp;
       out.best = Math.max(local.best || 0, remote.best || 0);
       out.mocks = Math.max(local.mocks || 0, remote.mocks || 0);
       if ((remote.lastDay || '') > (local.lastDay || '')) { out.lastDay = remote.lastDay; out.streak = remote.streak; }
@@ -268,6 +269,31 @@ const Store = (() => {
       return out;
     }
     return local;
+  }
+
+  // Records that can be edited from two devices at once are merged with the server copy, using the
+  // row's updated_at as a version check so a write never overwrites changes it has not seen.
+  const MERGEABLE = /^(lg-|st-|nt-|profile$|tags$)/;
+  const mergeListeners = new Set();
+  const netErr = e => ({ code: /fetch|network|load failed/i.test(e.message || '') || !navigator.onLine ? 'unavailable' : 'error', message: e.message });
+  async function writeMerged(key, local) {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const r = await sb.from('user_docs').select('value,updated_at').eq('user_id', sbUser.id).eq('key', key).maybeSingle();
+      if (r.error) throw netErr(r.error);
+      const stamp = new Date().toISOString();
+      if (!r.data) {
+        const ins = await sb.from('user_docs').insert({ user_id: sbUser.id, key, value: local, updated_at: stamp });
+        if (!ins.error) return local;
+        if (/duplicate|conflict|23505/i.test(ins.error.message + ' ' + ins.error.code)) continue;
+        throw netErr(ins.error);
+      }
+      const merged = mergeDoc(key, local, r.data.value);
+      const up = await sb.from('user_docs').update({ value: merged, updated_at: stamp }).eq('user_id', sbUser.id).eq('key', key).eq('updated_at', r.data.updated_at).select('key');
+      if (up.error) throw netErr(up.error);
+      if (up.data && up.data.length) return merged;
+      await new Promise(res => setTimeout(res, 40 + Math.random() * 120));
+    }
+    throw { code: 'unavailable', message: 'busy, will retry' };
   }
 
   function scheduleRetry() {
@@ -288,17 +314,16 @@ const Store = (() => {
             const ref = col().doc(key);
             if (value === null) await ref.delete(); else await ref.set(value);
           } else if (mode === 'account') {
-            let v = value;
-            if (v !== null && reconnectMerge.has(key)) {
-              const r = await sb.from('user_docs').select('value').eq('user_id', sbUser.id).eq('key', key).maybeSingle();
-              if (r.error) throw { code: 'unavailable', message: r.error.message };
-              if (r.data) v = mergeDoc(key, v, r.data.value);
+            if (value === null) {
+              const { error } = await sb.from('user_docs').delete().eq('user_id', sbUser.id).eq('key', key);
+              if (error) throw netErr(error);
+            } else if (MERGEABLE.test(key)) {
+              const merged = await writeMerged(key, value);
+              if (JSON.stringify(merged) !== JSON.stringify(value)) for (const f of mergeListeners) f(key, merged);
+            } else {
+              const { error } = await sb.from('user_docs').upsert({ user_id: sbUser.id, key, value, updated_at: new Date().toISOString() });
+              if (error) throw netErr(error);
             }
-            const q = v === null
-              ? sb.from('user_docs').delete().eq('user_id', sbUser.id).eq('key', key)
-              : sb.from('user_docs').upsert({ user_id: sbUser.id, key, value: v, updated_at: new Date().toISOString() });
-            const { error } = await q;
-            if (error) throw { code: /fetch|network|load failed/i.test(error.message) || !navigator.onLine ? 'unavailable' : 'error', message: error.message };
             reconnectMerge.delete(key);
             clearPending(key, value);
             offline = false;
@@ -339,5 +364,5 @@ const Store = (() => {
   function emit() { for (const f of listeners) f(status()); }
   const onStatus = f => { listeners.add(f); f(status()); };
 
-  return { init, loadAll, put, chunkCards, status, onStatus, viewerName, signIn, signUp, signOut, resetPassword, googleEnabled, signInGoogle, isAdmin, adminStudents, adminDocs, loadSharedTags, setSharedTags, insertEvents, reportError, adminActivity, adminEventCounts, adminErrors, get signedIn() { return !!sbUser; }, pendingKeys, inviteCode, recordReferral, myReferrals, createChallenge, getChallenge, postResult, myChallenges, get email() { return sbUser?.email || ''; }, get client() { return sb; }, get userId() { return sbUser?.id || null; }, get mode() { return mode; }, lsGet, lsSet };
+  return { init, loadAll, put, chunkCards, status, onStatus, viewerName, signIn, signUp, signOut, resetPassword, googleEnabled, signInGoogle, isAdmin, adminStudents, adminDocs, loadSharedTags, setSharedTags, insertEvents, reportError, adminActivity, adminEventCounts, adminErrors, get signedIn() { return !!sbUser; }, pendingKeys, onMerged: f => mergeListeners.add(f), inviteCode, recordReferral, myReferrals, createChallenge, getChallenge, postResult, myChallenges, get email() { return sbUser?.email || ''; }, get client() { return sb; }, get userId() { return sbUser?.id || null; }, get mode() { return mode; }, lsGet, lsSet };
 })();

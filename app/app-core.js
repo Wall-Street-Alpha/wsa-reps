@@ -52,8 +52,28 @@ async function loadData() {
     await createDeck('Starter Deck', 'Built in', SEED.map(c => ({ ...c })), 'starter');
     saveProfile();
   }
+  if (S.profile.xpBase == null) S.profile.xpBase = S.profile.xp;
   S.ready = true;
 }
+
+// Another device saved changes we had not seen: fold them into what is on screen.
+Store.onMerged((key, v) => {
+  if (key.startsWith('lg-')) S.logs[key.slice(3)] = v.e || [];
+  else if (key.startsWith('st-')) {
+    for (const [cid, x] of Object.entries(v.m || {})) {
+      const cur = S.st[cid];
+      if (!cur || (x[6] || 0) > (cur.last || 0)) S.st[cid] = { state: x[0], due: x[1], s: x[2], d: x[3], reps: x[4], lapses: x[5], last: x[6] };
+      if (x[7]) S.star[cid] = true;
+    }
+  } else if (key.startsWith('nt-')) Object.assign(S.notes, v.m || {}, S.notes);
+  else if (key === 'tags') S.myTags = { ...(v.m || {}), ...S.myTags };
+  else if (key === 'profile') {
+    S.profile.xp = Math.max(S.profile.xp, v.xp || 0); S.profile.xpBase = v.xpBase ?? v.xp;
+    S.profile.best = Math.max(S.profile.best || 0, v.best || 0);
+    S.profile.decks = v.decks || S.profile.decks;
+  }
+  if (typeof updateNavStats === 'function') updateNavStats();
+});
 
 function addDeckToMemory(meta, cards) {
   const deck = { ...meta, cards };
