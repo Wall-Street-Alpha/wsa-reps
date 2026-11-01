@@ -210,8 +210,10 @@ Pages.prefs = el => {
       <button class="btn go" id="p-save" style="justify-self:start">Save preferences</button>
     </div>
     <div class="card grid" style="gap:12px"><h2>Decks</h2>${S.decks.map(d => `<div class="grid" style="gap:8px;border-top:1px solid var(--line);padding-top:12px" data-deck="${d.id}"><div class="row spread"><input class="input" value="${h(d.name)}" data-rename="${d.id}" style="max-width:360px" aria-label="Deck name"><span class="faint num">${d.cards.length} cards</span></div><div class="row"><button class="btn sm" data-reset="${d.id}">Reset progress</button><button class="btn sm danger" data-del="${d.id}">Delete deck</button></div><div data-confirm="${d.id}"></div></div>`).join('') || '<p class="muted">No decks.</p>'}</div>
+    ${!isStandalone() && !window.claude ? `<div class="card grid" style="gap:8px"><h2>Install on your phone</h2>${installHelp()}</div>` : ''}
     <div class="card grid" style="gap:10px"><h2>Your data</h2><p class="muted">${Store.mode === 'account' ? 'Progress is stored privately under your account. Nobody else using this app can see it.' : Store.mode === 'cloud' ? 'Progress is stored privately under your claude.ai account. Nobody else using this app can see it.' : 'Progress is stored in this browser only.'}</p><div class="row"><button class="btn" id="p-export">Export my data (JSON)</button>${Store.mode === 'account' ? `<button class="btn" id="p-signout">Sign out ${h(Store.email)}</button>` : ''}</div><div id="p-export-out"></div></div></div>`;
   const so = $('#p-signout', el); if (so) so.onclick = () => Store.signOut();
+  bindInstall(el);
   $('#p-ret', el).oninput = e => $('#p-ret-v', el).textContent = Math.round(e.target.value * 100) + '%';
   $('#p-save', el).onclick = () => {
     p.name = $('#p-name', el).value.trim(); p.goal = +$('#p-goal', el).value; p.newPerDay = Math.max(0, Math.min(100, +$('#p-new', el).value || 0)); p.retention = +$('#p-ret', el).value;
@@ -323,6 +325,23 @@ function authScreen() {
     };
     draw();
   });
+}
+
+// Home-screen install: service worker on the website, and a one-time tip on phones.
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+let deferredInstall = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
+if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.claude) navigator.serviceWorker.register('sw.js').catch(() => {});
+function installHelp() {
+  if (isStandalone() || window.claude) return '';
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const steps = ios ? 'Tap <b>Share</b>, then <b>Add to Home Screen</b>.'
+    : 'Open the browser menu, then tap <b>Install app</b> or <b>Add to Home screen</b>.';
+  return `<div class="install"><div class="row spread" style="align-items:flex-start;gap:10px"><div style="min-width:0"><b>Use WSA Reps like an app</b><p class="muted" style="font-size:.88rem;margin-top:4px">${steps} It opens full screen and remembers your sign-in.</p></div><div class="row" style="gap:6px">${deferredInstall ? '<button class="btn sm go" id="do-install">Install</button>' : ''}<button class="btn sm ghost" id="hide-install" aria-label="Dismiss">Not now</button></div></div></div>`;
+}
+function bindInstall(el) {
+  const i = $('#do-install', el); if (i) i.onclick = async () => { deferredInstall.prompt(); await deferredInstall.userChoice.catch(() => {}); deferredInstall = null; $('.install', el)?.remove(); };
+  const hd = $('#hide-install', el); if (hd) hd.onclick = () => { Store.lsSet('installHidden', Date.now()); $('.install', el)?.remove(); };
 }
 
 addEventListener('hashchange', route);

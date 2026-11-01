@@ -390,3 +390,6 @@ h1 { font-weight: 600; letter-spacing: -.01em; }
 .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .btn.google { background: var(--panel); color: var(--ink); outline: 1px solid var(--line-2); outline-offset: -1px; }
 .btn.google:hover { background: var(--layer); }
+.install { background: var(--panel); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); border-left: 3px solid var(--brand); }
+.card .install { box-shadow: none; background: var(--layer); }
+@media (display-mode: standalone) { main { padding-top: 16px; } }

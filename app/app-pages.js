@@ -36,6 +36,7 @@ Pages.today = el => {
   el.innerHTML = `<div class="page">
     <div class="hello"><div class="eyebrow">${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div><h1>${greet}${nm ? `, ${h(nm)}` : ''}. <span class="grad">${h(hello)}</span></h1></div>
     ${Store.mode === 'local' ? `<div class="banner">Progress is saved in this browser only on this copy of the app.</div>` : ''}
+    ${matchMedia('(max-width: 900px)').matches && !Store.lsGet('installHidden') ? installHelp() : ''}
     <div class="home">
       <div class="grid" style="gap:18px">
         <div class="card lockin">
@@ -71,6 +72,7 @@ Pages.today = el => {
   </div>`;
   el.querySelectorAll('[data-drill]').forEach(b => b.onclick = () => startSession({ mode: 'category', ids: buildCategoryQueue(b.dataset.drill), title: b.dataset.drill }));
   drawCal($('#cal-box', el));
+  bindInstall(el);
 };
 
 let CAL_OFFSET = 0;

@@ -1,5 +1,5 @@
 // Assembles app/ + src/lib modules into dist/index.html (single file, no bundler).
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, readdirSync } from 'node:fs';
 const r = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const wrap = (name, file, exportsList) => {
   const body = r(file).replace(/^export\s+(?=(const|function|let))/gm, '');
@@ -37,8 +37,24 @@ ${js}
 `;
 const out = target === 'site' ? '../site/' : '../dist/';
 mkdirSync(new URL(out, import.meta.url), { recursive: true });
+const pwaHead = `<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#1f4e8c"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="WSA Reps"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">`;
 const page = target === 'site'
-  ? `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="description" content="Spaced-repetition practice for investment banking interviews.">${html.replace('<title>WSA Reps</title>', '<title>WSA Reps</title>').split('<style>')[0]}<style>${html.split('<style>')[1].split('</style>')[0]}</style></head><body>${html.split('</style>')[1]}</body></html>`
+  ? `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="description" content="Spaced-repetition practice for investment banking interviews.">${pwaHead}${html.replace('<title>WSA Reps</title>', '<title>WSA Reps</title>').split('<style>')[0]}<style>${html.split('<style>')[1].split('</style>')[0]}</style></head><body>${html.split('</style>')[1]}</body></html>`
   : html;
 writeFileSync(new URL(out + 'index.html', import.meta.url), page);
+if (target === 'site') {
+  mkdirSync(new URL(out + 'icons/', import.meta.url), { recursive: true });
+  for (const f of readdirSync(new URL('../app/icons/', import.meta.url))) copyFileSync(new URL('../app/icons/' + f, import.meta.url), new URL(out + 'icons/' + f, import.meta.url));
+  writeFileSync(new URL(out + 'manifest.webmanifest', import.meta.url), JSON.stringify({
+    name: 'WSA Reps', short_name: 'WSA Reps', description: 'Spaced-repetition practice for investment banking interviews.',
+    id: './', start_url: './', scope: './', display: 'standalone', orientation: 'portrait',
+    background_color: '#f4f6f9', theme_color: '#1f4e8c',
+    icons: [
+      { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
+  }, null, 2));
+  writeFileSync(new URL(out + 'sw.js', import.meta.url), r('app/sw.js').replace('__BUILD__', String(Date.now())));
+}
 console.log(out + 'index.html', page.length, 'bytes', target === 'site' ? JSON.stringify({ supabase: !!cfg.supabaseUrl }) : '');
