@@ -23,19 +23,22 @@ const Store = (() => {
         [db, user] = await Promise.all([c.use('db'), c.use('user')]);
         if (db && user) uid = await user.id();
       } catch { db = null; }
-      if (db && uid) { mode = 'cloud'; return { mode }; }
+      if (db && uid) { mode = 'cloud'; emit(); return { mode }; }
     }
     if (CFG.supabaseUrl && CFG.supabaseKey) {
       try {
         await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js');
-        sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+        sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' } });
         const { data } = await sb.auth.getSession();
         sbUser = data.session?.user || null;
+        if (/[?&]code=|[?&]error=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
         mode = 'account';
+        emit();
         return { mode, needsLogin: !sbUser };
       } catch { sb = null; }
     }
     mode = 'local';
+    emit();
     return { mode };
   }
 
@@ -43,6 +46,7 @@ const Store = (() => {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
     sbUser = data.user;
+    emit();
   }
   async function signUp(email, password, name) {
     const { data, error } = await sb.auth.signUp({ email, password, options: { data: { display_name: name }, emailRedirectTo: location.origin + location.pathname } });
@@ -51,6 +55,16 @@ const Store = (() => {
     sbUser = data.user;
     return { confirm: false };
   }
+  async function googleEnabled() {
+    try {
+      const r = await fetch(CFG.supabaseUrl + '/auth/v1/settings', { headers: { apikey: CFG.supabaseKey } });
+      return !!(await r.json()).external?.google;
+    } catch { return false; }
+  }
+  async function signInGoogle() {
+    const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
+    if (error) throw error;
+  }
   async function resetPassword(email) {
     const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
     if (error) throw error;
@@ -58,7 +72,7 @@ const Store = (() => {
   async function signOut() { if (sb) await sb.auth.signOut(); location.hash = ''; location.reload(); }
 
   async function viewerName() {
-    if (sbUser) return sbUser.user_metadata?.display_name || sbUser.email || '';
+    if (sbUser) { const m = sbUser.user_metadata || {}; return m.display_name || m.full_name || m.name || sbUser.email || ''; }
     try { return user ? (await user.name()) || '' : ''; } catch { return ''; }
   }
 
@@ -131,5 +145,5 @@ const Store = (() => {
   function emit() { for (const f of listeners) f(status()); }
   const onStatus = f => { listeners.add(f); f(status()); };
 
-  return { init, loadAll, put, chunkCards, status, onStatus, viewerName, signIn, signUp, signOut, resetPassword, get email() { return sbUser?.email || ''; }, get mode() { return mode; }, lsGet, lsSet };
+  return { init, loadAll, put, chunkCards, status, onStatus, viewerName, signIn, signUp, signOut, resetPassword, googleEnabled, signInGoogle, get email() { return sbUser?.email || ''; }, get mode() { return mode; }, lsGet, lsSet };
 })();

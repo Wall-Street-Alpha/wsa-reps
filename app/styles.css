@@ -386,3 +386,7 @@ h1 { font-weight: 600; letter-spacing: -.01em; }
 .done-hero .bo { flex-direction: column; text-align: center; }
 .done-hero .bo-bubble::before { left: 50%; top: -7px; margin: 0 0 0 -7px; border: 7px solid transparent; border-top: 0; border-bottom-color: var(--layer); }
 @media (max-width: 600px) { .bo-bubble { font-size: .86rem; } }
+.or { display: flex; align-items: center; gap: 10px; color: var(--ink-3); font-size: .82rem; }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.btn.google { background: var(--panel); color: var(--ink); outline: 1px solid var(--line-2); outline-offset: -1px; }
+.btn.google:hover { background: var(--layer); }
