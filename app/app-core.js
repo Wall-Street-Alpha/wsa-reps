@@ -180,10 +180,11 @@ function rateCard(cardId, rating, { ms = 0, coverage = -1, mode = 'practice', co
   checkAchievements();
   saveProfile();
   if (first && S.profile.streak > 1) App.toast(`${S.profile.streak}-day streak`);
+  if (typeof updateNavStats === 'function') updateNavStats();
   return { xp, next };
 }
 
-function finishSessionBonus() { addXp(20); checkAchievements(); saveProfile(); }
+function finishSessionBonus() { addXp(20); checkAchievements(); saveProfile(); if (typeof updateNavStats === 'function') updateNavStats(); }
 
 // Queues
 const isDue = (s, now) => s && s.state !== SRS.STATE.NEW && s.due <= now;
