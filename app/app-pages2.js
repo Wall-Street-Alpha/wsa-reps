@@ -306,13 +306,14 @@ Pages.admin = async el => {
     el.innerHTML = `<div class="page" style="max-width:720px"><div class="card empty">${boSays('think', 'This page is for admins.', 64)}<p class="muted">Admins are set up in Supabase with <span class="mono">supabase/admin-setup.sql</span>.</p><a class="btn" href="#today">Back home</a></div></div>`;
     return;
   }
-  el.innerHTML = `<div class="page wide"><div class="row spread"><div class="hello"><div class="eyebrow">Admin</div><h1>${{ students: 'Students', activity: 'Activity', errors: 'Errors' }[ADMIN.tab]}</h1></div><div class="row"><div class="tabs" role="tablist">${[['students', 'Students'], ['activity', 'Activity'], ['errors', 'Errors']].map(([k, l]) => `<button role="tab" data-adtab="${k}" aria-selected="${ADMIN.tab === k}">${l}</button>`).join('')}</div><button class="btn" id="ad-refresh">Refresh</button>${ADMIN.tab === 'students' ? '<button class="btn" id="ad-csv">Export CSV</button>' : ''}</div></div><div id="ad-body"><div class="card empty"><b>Loading...</b></div></div></div>`;
+  el.innerHTML = `<div class="page wide"><div class="row spread"><div class="hello"><div class="eyebrow">Admin</div><h1>${{ students: 'Students', activity: 'Activity', errors: 'Errors', admins: 'Admins' }[ADMIN.tab]}</h1></div><div class="row"><div class="tabs" role="tablist">${[['students', 'Students'], ['activity', 'Activity'], ['errors', 'Errors'], ['admins', 'Admins']].map(([k, l]) => `<button role="tab" data-adtab="${k}" aria-selected="${ADMIN.tab === k}">${l}</button>`).join('')}</div><button class="btn" id="ad-refresh">Refresh</button>${ADMIN.tab === 'students' ? '<button class="btn" id="ad-csv">Export CSV</button>' : ''}</div></div><div id="ad-body"><div class="card empty"><b>Loading...</b></div></div></div>`;
   el.querySelectorAll('[data-adtab]').forEach(b => b.onclick = () => { ADMIN.tab = b.dataset.adtab; Pages.admin(el); });
   $('#ad-refresh', el).onclick = () => { ADMIN.rows = null; Pages.admin(el); };
   const csv = $('#ad-csv', el); if (csv) csv.onclick = () => exportCsv();
   const body = $('#ad-body', el);
   if (ADMIN.tab === 'activity') return drawActivity(body);
   if (ADMIN.tab === 'errors') return drawErrors(body);
+  if (ADMIN.tab === 'admins') return drawAdmins(body);
   try { if (!ADMIN.rows) ADMIN.rows = await Store.adminStudents(); }
   catch (e) { body.innerHTML = `<div class="banner">Could not load students: ${h(e.message || e)}</div>`; return; }
   drawAdmin(body);
@@ -338,7 +339,7 @@ function drawAdmin(box) {
   box.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { if (ADMIN.sort === b.dataset.sort) ADMIN.dir *= -1; else { ADMIN.sort = b.dataset.sort; ADMIN.dir = -1; } drawAdmin(box); });
   box.querySelectorAll('.ad-row').forEach(tr => { const go = () => location.hash = 'a-' + tr.dataset.uid; tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
 }
-const EVENT_NAMES = { app_open: 'App opened', sign_up: 'Signed up', sign_in: 'Signed in', session_complete: 'Session completed', mock_complete: 'Mock interview completed', superday_complete: 'Superday completed', import: 'Deck imported', bank_tag: 'Bank tagged', install_click: 'Install clicked', invite_share: 'Invite link shared', referral_joined: 'Joined from an invite', challenge_created: 'Challenge created', challenge_share: 'Challenge shared', challenge_complete: 'Challenge completed' };
+const EVENT_NAMES = { app_open: 'App opened', sign_up: 'Signed up', sign_in: 'Signed in', session_complete: 'Session completed', mock_complete: 'Mock interview completed', superday_complete: 'Superday completed', import: 'Deck imported', bank_tag: 'Bank tagged', install_click: 'Install clicked', invite_share: 'Invite link shared', referral_joined: 'Joined from an invite', challenge_created: 'Challenge created', challenge_share: 'Challenge shared', challenge_complete: 'Challenge completed', admin_added: 'Admin added' };
 async function drawActivity(box) {
   let days, counts;
   try { [days, counts] = await Promise.all([Store.adminActivity(14), Store.adminEventCounts(7)]); }
@@ -361,6 +362,32 @@ async function drawErrors(box) {
   catch (e) { box.innerHTML = `<div class="banner">Could not load errors: ${h(e.message || e)}. Run the latest supabase/admin-setup.sql if you have not yet.</div>`; return; }
   box.innerHTML = rows.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>When</th><th>Error</th><th>Who</th><th>Device</th><th>Version</th></tr></thead><tbody>${rows.map(r => `<tr><td class="faint" style="white-space:nowrap">${new Date(r.created_at).toLocaleString()}</td><td style="max-width:420px"><b>${h(r.message)}</b><div class="faint" style="font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h(r.url || '')}</div></td><td>${h(r.email || 'signed out')}</td><td class="faint" style="font-size:.78rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h(/iphone|ipad/i.test(r.user_agent) ? 'iPhone/iPad' : /android/i.test(r.user_agent) ? 'Android' : /mac/i.test(r.user_agent) ? 'Mac' : /windows/i.test(r.user_agent) ? 'Windows' : r.user_agent || '')}</td><td class="faint">${h(r.app_version || '')}</td></tr>`).join('')}</tbody></table></div>`
     : `<div class="card empty">${boSays('cheer', 'No errors reported. Smooth sailing.', 64)}</div>`;
+}
+async function drawAdmins(box, note) {
+  let rows;
+  try { rows = await Store.adminListAdmins(); }
+  catch (e) { box.innerHTML = `<div class="banner">Could not load admins: ${h(e.message || e)}. Run supabase/admin-manage.sql in Supabase if you have not yet.</div>`; return; }
+  box.innerHTML = `<div class="grid" style="gap:16px;max-width:760px">
+    <div class="card grid" style="gap:10px"><h3>Add an admin</h3>
+      <p class="muted" style="margin:0">They need a WSA Reps account first. Ask them to sign up, then add the email they used. Admins can see every student's progress.</p>
+      <form id="adm-form" class="row" style="gap:8px;flex-wrap:wrap"><input class="input" id="adm-email" type="email" required placeholder="name@wallstalpha.com" aria-label="Email of the new admin" style="flex:1;min-width:220px"><button class="btn go" type="submit">Add admin</button></form>
+      <div id="adm-note">${note || ''}</div></div>
+    <div class="table-wrap"><table class="tbl"><thead><tr><th>Admin</th><th>Added</th><th></th></tr></thead><tbody>${rows.map(r => `<tr><td><b>${h(r.name || r.email)}</b><div class="faint" style="font-size:.8rem">${h(r.email)}</div></td><td class="faint">${new Date(r.added_at).toLocaleDateString()}</td><td style="text-align:right">${r.user_id === Store.userId ? '<span class="faint">You</span>' : `<button class="btn sm" data-rm="${r.user_id}" data-em="${h(r.email)}">Remove</button>`}</td></tr>`).join('')}</tbody></table></div></div>`;
+  const msg = (t, ok) => `<div class="banner"${ok ? ' style="border-color:var(--gotit)"' : ''}>${t}</div>`;
+  $('#adm-form', box).onsubmit = async e => {
+    e.preventDefault();
+    const em = $('#adm-email', box).value.trim(); if (!em) return;
+    try {
+      const r = await Store.adminAddAdmin(em);
+      if (r === 'no_account') $('#adm-note', box).innerHTML = msg(`No account uses ${h(em)} yet. Ask them to sign up on WSA Reps first, then add them here.`);
+      else { Telemetry.track('admin_added'); drawAdmins(box, msg(`${h(em)} is now an admin.`, true)); }
+    } catch (err) { $('#adm-note', box).innerHTML = msg(`Could not add: ${h(err.message || err)}`); }
+  };
+  box.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
+    if (!confirm(`Remove admin access for ${b.dataset.em}? Their account and progress stay.`)) return;
+    try { const r = await Store.adminRemoveAdmin(b.dataset.rm); drawAdmins(box, r === 'cannot_remove_self' ? msg('You cannot remove yourself.') : msg(`${h(b.dataset.em)} is no longer an admin.`, true)); }
+    catch (err) { $('#adm-note', box).innerHTML = msg(`Could not remove: ${h(err.message || err)}`); }
+  });
 }
 function exportCsv() {
   if (!ADMIN.rows) return;

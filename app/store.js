@@ -130,6 +130,9 @@ const Store = (() => {
   const adminActivity = days => rpc('admin_activity', { days });
   const adminEventCounts = days => rpc('admin_event_counts', { days });
   const adminErrors = lim => rpc('admin_recent_errors', { lim });
+  const adminListAdmins = () => rpc('admin_list_admins');
+  const adminAddAdmin = email => rpc('admin_add_admin', { target_email: email });
+  const adminRemoveAdmin = uid => rpc('admin_remove_admin', { target: uid });
 
   const inviteCode = () => sbUser ? sbUser.id.replace(/-/g, '').slice(0, 10) : '';
   async function recordReferral(code, name) {
@@ -374,5 +377,5 @@ const Store = (() => {
   function emit() { for (const f of listeners) f(status()); }
   const onStatus = f => { listeners.add(f); f(status()); };
 
-  return { init, loadAll, put, chunkCards, status, onStatus, viewerName, signIn, signUp, signOut, resetPassword, googleEnabled, signInGoogle, isAdmin, adminStudents, adminDocs, loadSharedTags, setSharedTags, insertEvents, beaconEvents, reportError, adminActivity, adminEventCounts, adminErrors, get signedIn() { return !!sbUser; }, pendingKeys, onMerged: f => mergeListeners.add(f), inviteCode, recordReferral, myReferrals, createChallenge, getChallenge, postResult, myChallenges, get email() { return sbUser?.email || ''; }, get client() { return sb; }, get userId() { return sbUser?.id || null; }, get mode() { return mode; }, lsGet, lsSet };
+  return { init, loadAll, put, chunkCards, status, onStatus, viewerName, signIn, signUp, signOut, resetPassword, googleEnabled, signInGoogle, isAdmin, adminStudents, adminDocs, loadSharedTags, setSharedTags, insertEvents, beaconEvents, reportError, adminActivity, adminEventCounts, adminErrors, adminListAdmins, adminAddAdmin, adminRemoveAdmin, get signedIn() { return !!sbUser; }, pendingKeys, onMerged: f => mergeListeners.add(f), inviteCode, recordReferral, myReferrals, createChallenge, getChallenge, postResult, myChallenges, get email() { return sbUser?.email || ''; }, get client() { return sb; }, get userId() { return sbUser?.id || null; }, get mode() { return mode; }, lsGet, lsSet };
 })();
