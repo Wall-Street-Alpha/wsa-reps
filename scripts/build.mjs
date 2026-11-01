@@ -20,6 +20,9 @@ const cfgJs = target === 'site' ? `window.WSA_CONFIG = ${JSON.stringify(cfg)};` 
 const js = [cfgJs, lib, r('app/store.js'), r('app/extract.js'), r('app/mascot.js'), r('app/app-core.js'), r('app/app-ui.js'), r('app/app-pages.js'), r('app/app-pages2.js')].join('\n\n');
 const html = `<title>WSA Reps</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap">
 <style>
 ${r('app/styles.css')}
 </style>

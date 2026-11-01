@@ -23,7 +23,7 @@ const I = {
   sDone: '<svg class="status" viewBox="0 0 20 20" style="color:var(--gotit)"><circle cx="10" cy="10" r="8" fill="currentColor"/><path d="M6 10l3 3 5-6" fill="none" stroke="var(--panel)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 const NAV = [['today', 'Home'], ['path', 'Learn'], ['problems', 'Problems'], ['mock', 'Mock'], ['progress', 'Progress'], ['import', 'Import']];
-const UNIT_COLORS = [['#1f4e8c', '#173c6d'], ['#2f6f73', '#235457'], ['#5b4a8a', '#46386b'], ['#8a5a1f', '#6b4618'], ['#7a3b4a', '#5e2d39'], ['#3c6e47', '#2e5536'], ['#4a5d78', '#384760'], ['#6b6f2a', '#525520']];
+const UNIT_COLORS = [['#2a62b0', '#1d4a87'], ['#1cb0f6', '#1593cf'], ['#2bb673', '#1f9459'], ['#7b61ff', '#5d47d6'], ['#ff9600', '#d97f00'], ['#ff6b8b', '#d9506f'], ['#00b8a9', '#00958a'], ['#3a74c4', '#2a5795']];
 
 const App = {
   toast(msg) {

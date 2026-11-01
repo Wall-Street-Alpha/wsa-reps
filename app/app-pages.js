@@ -288,7 +288,7 @@ function confetti() {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const cv = document.createElement('canvas'); cv.className = 'confetti'; document.body.append(cv);
   const ctx = cv.getContext('2d'), W = cv.width = innerWidth, H = cv.height = innerHeight;
-  const cols = ['#1f4e8c', '#2f6f73', '#a8801f', '#4a5d78', '#1e7a55'];
+  const cols = ['#1f4e8c', '#1cb0f6', '#ffc800', '#2bb673', '#ff9600', '#7b61ff'];
   const ps = Array.from({ length: 140 }, () => ({ x: W / 2 + (Math.random() - .5) * 200, y: H / 3, vx: (Math.random() - .5) * 12, vy: -Math.random() * 12 - 4, r: Math.random() * 6 + 4, c: cols[Math.floor(Math.random() * cols.length)], a: Math.random() * 6 }));
   let t = 0;
   (function f() {
