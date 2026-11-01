@@ -1,6 +1,6 @@
 # WSA Reps stress test, 2026-11-01
 
-**Result:** the app holds up well beyond expected class sizes. The test found four problems, including one data-loss bug that only showed up on the live site, and all four are fixed. No security holes turned up.
+**Result:** the app holds up well beyond expected class sizes. The test found five problems, including a data-loss bug that only showed up on the live site, and all five are fixed. No security holes turned up.
 
 ## Results
 
@@ -39,7 +39,22 @@ Ten real browsers used the live site at the same time: the five test accounts, e
 | XP from both devices | 120 earned, 120 recorded |
 | Features waiting on setup SQL | Friends shows "turns on after setup"; students cannot open Admin |
 
-**Not tested live:** the admin panel, bank tags, logging, invites and challenges. They depend on `supabase/admin-setup.sql`, which hasn't been run on the live database yet. All of them passed against a stand-in database, and their security rules were tested on a real Postgres engine.
+## Live admin test (after admin-setup.sql was run)
+
+| Check | Result |
+|---|---|
+| Admin link | Shown for Amber's account, hidden for students |
+| Students tab | All 9 accounts with real reviews, XP, accuracy, mastered cards, mocks |
+| Student detail | Activity, accuracy by topic, recent reviews |
+| Errors tab | A deliberate error report appeared with account, page and device |
+| Activity tab | Sign-ins and app opens from every visit; three short visits sent all 6 events |
+| Bank tags | Amber tagged a question Goldman Sachs; a student filtering by that bank found it |
+| Challenge | Tester 1 created and took it; Tester 2 opened the link, took it and topped the leaderboard |
+| Invite link | Tester 3 opened Tester 1's link; Tester 1's Friends page showed the new friend |
+| Admin queries under load | 60 calls, 12 at a time: typical response 84 ms, slowest 5% under 210 ms, no errors |
+| Student access | Calling admin functions is refused; reading events returns nothing; other students' rows return nothing |
+
+The live admin test found one more problem: activity events from short visits could arrive late. The fix is listed below as problem 5.
 
 ## Problems found and fixed
 
@@ -55,6 +70,9 @@ Ten real browsers used the live site at the same time: the five test accounts, e
 4. **The same account on two devices could lose reviews.** Each device overwrote the other's saves. Found by the live test.
    - *Fix:* saves now re-read the server copy, merge, and write only if nothing changed in between (a version check on each row), retrying when it did.
    - *Fix:* XP from both devices adds up rather than one overwriting the other, and the open app picks up the other device's reviews.
+
+5. **Activity events from short visits could arrive late.** They waited four seconds before sending, so they only arrived on the student's next visit. Found by the live admin test.
+   - *Fix:* events now send after 1.5 seconds and again when a tab is closed or hidden.
 
 Also improved: unreadable files now say what's wrong in plain English ("may be damaged, password-protected, or a scanned PDF"), and import failures are logged to the admin Errors tab.
 
