@@ -210,6 +210,7 @@ Pages.prefs = el => {
       <button class="btn go" id="p-save" style="justify-self:start">Save preferences</button>
     </div>
     <div class="card grid" style="gap:12px"><h2>Decks</h2>${S.decks.map(d => `<div class="grid" style="gap:8px;border-top:1px solid var(--line);padding-top:12px" data-deck="${d.id}"><div class="row spread"><input class="input" value="${h(d.name)}" data-rename="${d.id}" style="max-width:360px" aria-label="Deck name"><span class="faint num">${d.cards.length} cards</span></div><div class="row"><button class="btn sm" data-reset="${d.id}">Reset progress</button><button class="btn sm danger" data-del="${d.id}">Delete deck</button></div><div data-confirm="${d.id}"></div></div>`).join('') || '<p class="muted">No decks.</p>'}</div>
+    ${S.isAdmin ? `<div class="card row spread"><div><h2>Admin panel</h2><p class="muted" style="font-size:.9rem">See every student's progress.</p></div><a class="btn go" href="#admin">Open admin panel</a></div>` : ''}
     ${!isStandalone() && !window.claude ? `<div class="card grid" style="gap:8px"><h2>Install on your phone</h2>${installHelp()}</div>` : ''}
     <div class="card grid" style="gap:10px"><h2>Your data</h2><p class="muted">${Store.mode === 'account' ? 'Progress is stored privately under your account. Nobody else using this app can see it.' : Store.mode === 'cloud' ? 'Progress is stored privately under your claude.ai account. Nobody else using this app can see it.' : 'Progress is stored in this browser only.'}</p><div class="row"><button class="btn" id="p-export">Export my data (JSON)</button>${Store.mode === 'account' ? `<button class="btn" id="p-signout">Sign out ${h(Store.email)}</button>` : ''}</div><div id="p-export-out"></div></div></div>`;
   const so = $('#p-signout', el); if (so) so.onclick = () => Store.signOut();
@@ -238,6 +239,75 @@ Pages.prefs = el => {
   };
 };
 
+
+// Admin panel (website accounts only). Data comes from admin-only database functions.
+let ADMIN = { rows: null, q: '', sort: 'last', dir: -1 };
+const relDay = t => { if (!t) return '–'; const d = Math.floor((Date.now() - new Date(t).getTime()) / DAY_MS); return d <= 0 ? 'Today' : d === 1 ? 'Yesterday' : d < 30 ? `${d} days ago` : new Date(t).toLocaleDateString(); };
+Pages.admin = async el => {
+  if (!S.isAdmin) {
+    el.innerHTML = `<div class="page" style="max-width:720px"><div class="card empty">${boSays('think', 'This page is for admins.', 64)}<p class="muted">Admins are set up in Supabase with <span class="mono">supabase/admin-setup.sql</span>.</p><a class="btn" href="#today">Back home</a></div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="page wide"><div class="row spread"><div class="hello"><div class="eyebrow">Admin</div><h1>Students</h1></div><div class="row"><button class="btn" id="ad-refresh">Refresh</button><button class="btn" id="ad-csv">Export CSV</button></div></div><div id="ad-body"><div class="card empty"><b>Loading students...</b></div></div></div>`;
+  $('#ad-refresh', el).onclick = () => { ADMIN.rows = null; Pages.admin(el); };
+  $('#ad-csv', el).onclick = () => exportCsv();
+  try { if (!ADMIN.rows) ADMIN.rows = await Store.adminStudents(); }
+  catch (e) { $('#ad-body', el).innerHTML = `<div class="banner">Could not load students: ${h(e.message || e)}</div>`; return; }
+  drawAdmin($('#ad-body', el));
+};
+function drawAdmin(box) {
+  const rows = ADMIN.rows, wk = Date.now() - 7 * DAY_MS;
+  const active = rows.filter(r => r.last_review_at && new Date(r.last_review_at).getTime() > wk).length;
+  const rev7 = rows.reduce((n, r) => n + r.reviews_7d, 0);
+  const tot = rows.reduce((n, r) => n + r.reviews_total, 0);
+  const good = tot ? Math.round(rows.reduce((n, r) => n + (r.good_pct || 0) * r.reviews_total, 0) / tot) : null;
+  const key = { name: r => (r.name || '').toLowerCase(), joined: r => +new Date(r.joined_at), last: r => r.last_review_at ? +new Date(r.last_review_at) : 0, streak: r => r.streak, xp: r => r.xp, r7: r => r.reviews_7d, total: r => r.reviews_total, good: r => r.good_pct ?? -1, mastered: r => r.mastered, mocks: r => r.mocks, time: r => +r.minutes_total }[ADMIN.sort];
+  const q = ADMIN.q.toLowerCase();
+  const list = rows.filter(r => !q || (r.name || '').toLowerCase().includes(q) || (r.email || '').toLowerCase().includes(q))
+    .sort((a, b) => { const x = key(a), y = key(b); return (x > y ? 1 : x < y ? -1 : 0) * ADMIN.dir; });
+  const th = (k, l) => `<th><button data-sort="${k}">${l}${ADMIN.sort === k ? (ADMIN.dir > 0 ? ' ↑' : ' ↓') : ''}</button></th>`;
+  box.innerHTML = `<div class="grid" style="gap:16px">
+    <div class="grid cols-4">${[['Students', rows.length], ['Active in last 7 days', active], ['Reviews in last 7 days', rev7], ['Rated Good or Easy', good == null ? '–' : good + '%']].map(([l, v]) => `<div class="card stat"><span>${l}</span><b>${v}</b></div>`).join('')}</div>
+    <input class="input" id="ad-q" type="search" placeholder="Search by name or email" value="${h(ADMIN.q)}" aria-label="Search students" style="max-width:360px">
+    <div class="table-wrap"><table class="tbl"><thead><tr>${th('name', 'Student')}${th('joined', 'Joined')}${th('last', 'Last active')}${th('streak', 'Streak')}${th('xp', 'Level')}${th('r7', 'Reviews 7d')}${th('total', 'Total')}${th('good', 'Good %')}${th('mastered', 'Mastered')}${th('mocks', 'Mocks')}${th('time', 'Time')}</tr></thead>
+    <tbody>${list.map(r => `<tr class="ad-row" data-uid="${r.user_id}" tabindex="0"><td><b>${h(r.name)}</b><div class="faint" style="font-size:.8rem">${h(r.email)}</div></td><td class="faint">${new Date(r.joined_at).toLocaleDateString()}</td><td>${relDay(r.last_review_at)}</td><td class="num">${r.streak}d</td><td class="num">Lv ${levelOf(r.xp)} <span class="faint">${r.xp} XP</span></td><td class="num">${r.reviews_7d}</td><td class="num">${r.reviews_total}</td><td class="num">${r.good_pct == null ? '–' : Math.round(r.good_pct) + '%'}</td><td class="num">${r.mastered}<span class="faint">/${r.cards_seen}</span></td><td class="num">${r.mocks}</td><td class="num faint">${Math.round(r.minutes_total)}m</td></tr>`).join('') || '<tr><td colspan="11"><div class="empty">No students match.</div></td></tr>'}</tbody></table></div>
+    <p class="faint" style="font-size:.8rem">Mastered means a card is in review with a stability of 21 days or more. Click a student for their activity.</p></div>`;
+  $('#ad-q', box).oninput = e => { ADMIN.q = e.target.value; drawAdmin(box); const i = $('#ad-q', box); i.focus(); i.setSelectionRange(i.value.length, i.value.length); };
+  box.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { if (ADMIN.sort === b.dataset.sort) ADMIN.dir *= -1; else { ADMIN.sort = b.dataset.sort; ADMIN.dir = -1; } drawAdmin(box); });
+  box.querySelectorAll('.ad-row').forEach(tr => { const go = () => location.hash = 'a-' + tr.dataset.uid; tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
+}
+function exportCsv() {
+  if (!ADMIN.rows) return;
+  const cols = ['name', 'email', 'joined_at', 'last_review_at', 'streak', 'best_streak', 'xp', 'reviews_7d', 'reviews_total', 'good_pct', 'cards_seen', 'mastered', 'mocks', 'minutes_total', 'decks'];
+  const esc = v => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const csv = [cols.join(','), ...ADMIN.rows.map(r => cols.map(c => esc(r[c])).join(','))].join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = `wsa-reps-students-${dayKey()}.csv`; document.body.append(a); a.click(); a.remove();
+}
+Pages.adminStudent = async (el, uid) => {
+  if (!S.isAdmin) return Pages.admin(el);
+  if (!ADMIN.rows) { try { ADMIN.rows = await Store.adminStudents(); } catch {} }
+  const r = (ADMIN.rows || []).find(x => x.user_id === uid);
+  el.innerHTML = `<div class="page"><a class="btn sm ghost" href="#admin" style="justify-self:start">&larr; All students</a><div id="as-body"><div class="card empty"><b>Loading...</b></div></div></div>`;
+  let docs;
+  try { docs = await Store.adminDocs(uid); } catch (e) { $('#as-body', el).innerHTML = `<div class="banner">${h(e.message || e)}</div>`; return; }
+  const logs = Object.entries(docs).filter(([k]) => k.startsWith('lg-')).flatMap(([, v]) => v.e || []).sort((a, b) => b[0] - a[0]);
+  const cards = new Map();
+  for (const [k, v] of Object.entries(docs)) if (k.startsWith('dk-')) for (const c of v.cards || []) cards.set(c.id, c);
+  for (const c of SEED.map((c, i) => ({ ...c, id: 'starter-' + i.toString(36) }))) if (!cards.has(c.id)) cards.set(c.id, c);
+  const byCat = new Map();
+  for (const e of logs) { const c = cards.get(e[1]); const cat = c ? c.category : 'Other'; const x = byCat.get(cat) || { n: 0, g: 0 }; x.n++; if (e[2] >= 3) x.g++; byCat.set(cat, x); }
+  const p = docs.profile || {};
+  const names = ['', 'Again', 'Hard', 'Good', 'Easy'], cls = ['', 'again', 'shaky', 'gotit', 'ez'];
+  $('#as-body', el).innerHTML = `<div class="grid" style="gap:16px">
+    <div class="hello"><div class="eyebrow">${h(r ? r.email : uid)}</div><h1>${h(r ? r.name : 'Student')}</h1><p class="muted">Joined ${r ? new Date(r.joined_at).toLocaleDateString() : '–'} · last active ${relDay(r && r.last_review_at)}</p></div>
+    <div class="grid cols-4">${[['Level', `Lv ${levelOf(p.xp || 0)} · ${p.xp || 0} XP`], ['Streak', `${p.streak || 0}d (best ${p.best || 0}d)`], ['Reviews', logs.length], ['Rated Good or Easy', logs.length ? Math.round(100 * logs.filter(e => e[2] >= 3).length / logs.length) + '%' : '–'], ['Cards mastered', r ? `${r.mastered} of ${r.cards_seen} seen` : '–'], ['Mock interviews', p.mocks || 0], ['Decks', (p.decks || []).length], ['Study time', r ? Math.round(r.minutes_total) + 'm' : '–']].map(([l, v]) => `<div class="card stat"><span>${l}</span><b style="font-size:1.15rem">${v}</b></div>`).join('')}</div>
+    <div class="card grid" style="gap:10px"><h3>Activity, last 26 weeks</h3>${heatmapFrom(logs, 26)}</div>
+    <div class="grid cols-2">
+      <div class="card grid" style="gap:10px"><h3>Accuracy by topic</h3>${[...byCat].sort((a, b) => b[1].n - a[1].n).map(([c, x]) => `<div class="hbar"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h(c)} <span class="faint num">${x.n}</span></span><div class="bar"><i style="width:${Math.round(100 * x.g / x.n)}%"></i></div><span class="num faint" style="text-align:right">${Math.round(100 * x.g / x.n)}%</span></div>`).join('') || '<p class="muted">No reviews yet.</p>'}</div>
+      <div class="card grid" style="gap:10px;align-content:start"><h3>Recent reviews</h3>${logs.length ? `<table class="tbl"><tbody>${logs.slice(0, 15).map(e => { const c = cards.get(e[1]); return `<tr><td style="max-width:280px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h(c ? c.q : e[1])}</div><div class="faint" style="font-size:.78rem">${new Date(e[0]).toLocaleString()}</div></td><td style="font-weight:600;color:var(--${cls[e[2]]})">${names[e[2]]}</td><td class="num faint">${Math.round(e[3] / 1000)}s</td></tr>`; }).join('')}</tbody></table>` : '<p class="muted">No reviews yet.</p>'}</div>
+    </div></div>`;
+};
+
 // Router and boot
 function applyTheme() {
   const t = Store.lsGet('theme');
@@ -249,8 +319,8 @@ function route() {
   const hash = location.hash.slice(1) || 'today';
   const main = $('#view');
   if (!S.ready) return;
-  const [page, id] = hash.startsWith('p-') ? ['problem', hash.slice(2)] : [hash, null];
-  const navKey = page === 'problem' ? 'problems' : page === 'session' ? 'today' : page;
+  const [page, id] = hash.startsWith('p-') ? ['problem', hash.slice(2)] : hash.startsWith('a-') ? ['adminStudent', hash.slice(2)] : [hash, null];
+  const navKey = page === 'problem' ? 'problems' : page === 'session' ? 'today' : page === 'adminStudent' ? 'admin' : page;
   document.querySelectorAll('.nav-link').forEach(a => a.toggleAttribute('aria-current', a.dataset.nav === navKey) || (a.dataset.nav === navKey && a.setAttribute('aria-current', 'page')));
   document.querySelectorAll('.nav-link').forEach(a => { if (a.dataset.nav === navKey) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   if (page !== 'session' && SESSION && SESSION.rated) { finishSessionBonus(); SESSION = null; }
@@ -269,7 +339,7 @@ function renderNav() {
   $('#tabbar').innerHTML = links;
   Store.onStatus(s => {
     const el = $('#sync'); if (!el) return;
-    el.innerHTML = s.mode === 'account' ? `<span class="dot ${s.error ? 'warn' : 'ok'}"></span>${s.error ? 'Sync issue, retrying' : s.pending ? 'Saving...' : 'Saved to your account'}` : s.mode === 'cloud' ? `<span class="dot ${s.error ? 'warn' : 'ok'}"></span>${s.error ? 'Sync issue, retrying' : s.pending ? 'Saving...' : 'Synced to your account'}` : `<span class="dot warn"></span>Saved in this browser`;
+    el.innerHTML = s.mode === 'account' ? (s.offline ? `<span class="dot warn"></span>Offline · ${s.pending ? `${s.pending} change${s.pending === 1 ? '' : 's'} will sync` : 'will sync when online'}` : `<span class="dot ${s.error ? 'warn' : 'ok'}"></span>${s.error ? 'Sync issue, retrying' : s.pending ? 'Saving...' : 'Saved to your account'}`) : s.mode === 'cloud' ? `<span class="dot ${s.error ? 'warn' : 'ok'}"></span>${s.error ? 'Sync issue, retrying' : s.pending ? 'Saving...' : 'Synced to your account'}` : `<span class="dot warn"></span>Saved in this browser`;
   });
 }
 async function boot() {
@@ -281,6 +351,8 @@ async function boot() {
   S.viewer = await Store.viewerName();
   try { await loadData(); }
   catch (e) { $('#view').innerHTML = `<div class="page"><div class="card empty"><h2>Couldn't load your progress</h2><p class="muted">Check your connection, then reload the page.</p></div></div>`; return; }
+  S.isAdmin = await Store.isAdmin();
+  if (S.isAdmin) { $('#navlinks').insertAdjacentHTML('beforeend', `<a class="nav-link" href="#admin" data-nav="admin">${I.mock}<span>Admin</span></a>`); }
   const n = S.profile.name || S.viewer || '';
   $('#who').textContent = (n.trim()[0] || 'Y').toUpperCase();
   $('#who').title = n ? `${n} · prefs` : 'Prefs';

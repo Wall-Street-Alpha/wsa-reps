@@ -97,9 +97,10 @@ function drawCal(box) {
   box.querySelectorAll('[data-cal]').forEach(b => b.onclick = () => { CAL_OFFSET = Math.min(0, CAL_OFFSET + +b.dataset.cal); drawCal(box); });
 }
 
-function heatmap(weeks) {
+function heatmap(weeks) { return heatmapFrom(allLogs(), weeks); }
+function heatmapFrom(logs, weeks) {
   const counts = {};
-  for (const e of allLogs()) { const k = dayKey(e[0]); counts[k] = (counts[k] || 0) + 1; }
+  for (const e of logs) { const k = dayKey(e[0]); counts[k] = (counts[k] || 0) + 1; }
   const end = new Date(); end.setHours(0, 0, 0, 0);
   const start = new Date(end); start.setDate(end.getDate() - end.getDay() - (weeks - 1) * 7);
   let cells = '';

@@ -41,3 +41,22 @@ function boLine(kind, ctx = {}) {
   }[kind] || [''];
   return L[Math.floor(Math.random() * L.length)];
 }
+
+// Tap Bo: he hops and a few stars burst out.
+document.addEventListener('click', e => {
+  const fig = e.target.closest && e.target.closest('.bo-fig');
+  if (!fig) return;
+  fig.classList.remove('bo-tap'); void fig.offsetWidth; fig.classList.add('bo-tap');
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const r = fig.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height * 0.35;
+  const colors = ['#d4a72c', '#e9c46a', '#1f4e8c', '#6aa0e8', '#e8838b'];
+  for (let i = 0; i < 10; i++) {
+    const st = document.createElement('span');
+    st.className = 'bo-star';
+    const ang = (Math.PI * 2 * i) / 10 + Math.random() * 0.5, dist = 46 + Math.random() * 36;
+    st.style.cssText = `left:${cx}px;top:${cy}px;--dx:${Math.cos(ang) * dist}px;--dy:${Math.sin(ang) * dist - 20}px;--s:${0.7 + Math.random() * 0.7};color:${colors[i % colors.length]}`;
+    st.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 16.9 6.1 20.1l1.3-6.6L2.5 8.9l6.6-.8z"/></svg>';
+    document.body.append(st);
+    setTimeout(() => st.remove(), 900);
+  }
+});

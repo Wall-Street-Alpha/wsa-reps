@@ -393,3 +393,9 @@ h1 { font-weight: 600; letter-spacing: -.01em; }
 .install { background: var(--panel); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); border-left: 3px solid var(--brand); }
 .card .install { box-shadow: none; background: var(--layer); }
 @media (display-mode: standalone) { main { padding-top: 16px; } }
+.bo-fig { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.bo-fig.bo-tap { animation: bo-jump .55s cubic-bezier(.3,1.6,.5,1); }
+@keyframes bo-jump { 35% { transform: translateY(-14px) scale(1.06) rotate(-4deg); } 70% { transform: translateY(0) scale(.97); } }
+.bo-star { position: fixed; z-index: 90; pointer-events: none; transform: translate(-50%, -50%); animation: bo-star .85s ease-out forwards; }
+@keyframes bo-star { 0% { opacity: 1; transform: translate(-50%, -50%) scale(.3); } 60% { opacity: 1; } 100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(var(--s)) rotate(160deg); } }
+.ad-row { cursor: pointer; }
