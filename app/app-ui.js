@@ -64,6 +64,23 @@ const VIBES = {
   bad: ['Not yet. This one will come back soon.', 'Review the model answer and try again later.'],
   peek: ['Study the model answer, then rate yourself.'],
 };
+function frameworkFor(card) {
+  const c = (card.category + ' ' + card.q).toLowerCase();
+  if (/why (investment )?banking|why our|why this|why .*firm/.test(c)) return { name: 'Structure', steps: ['Your story', 'What drew you in', 'Why now', 'Why this firm'] };
+  if (/resume|walk me through (yourself|your background)|tell me about yourself/.test(c)) return { name: 'Structure', steps: ['Background', 'Turning point', 'Experience', 'Why banking now'] };
+  if (/stock|pitch/.test(c)) return { name: 'Pitch', steps: ['Company', 'Financials', 'Thesis', 'Catalyst', 'Risks'] };
+  if (/deal|transaction/.test(c)) return { name: 'Deal', steps: ['Parties & price', 'Multiples', 'Rationale', 'Financing', 'Your view'] };
+  if (/dcf|discounted|wacc|terminal/.test(c)) return { name: 'Framework', steps: ['Projections', 'Terminal value', 'Discount at WACC', 'EV to equity value'] };
+  if (/lbo|leveraged|sponsor|irr/.test(c)) return { name: 'Framework', steps: ['Purchase price', 'Sources & uses', 'Debt paydown', 'Exit', 'Returns'] };
+  if (/merger|accret|dilut|synerg/.test(c)) return { name: 'Framework', steps: ['Purchase & funding', 'Combined income', 'Adjustments', 'Accretion / dilution'] };
+  if (/enterprise|equity value/.test(c)) return { name: 'Framework', steps: ['Equity value', 'Add debt & preferred', 'Less cash', 'Result'] };
+  if (/valuation|comps|precedent|multiple/.test(c)) return { name: 'Framework', steps: ['Comparable companies', 'Precedent transactions', 'DCF', 'Conclusion'] };
+  if (/accounting|statement|depreciation|inventory|tax|goodwill|working capital/.test(c)) return { name: 'Three statements', steps: ['Income statement', 'Cash flow statement', 'Balance sheet', 'Check it balances'] };
+  if (/restructur|distress|bankrupt|chapter/.test(c)) return { name: 'Framework', steps: ['Direct answer', 'Mechanics', 'Who is affected', 'Example'] };
+  if (/brain|how many|estimate|angle/.test(c)) return { name: 'Approach', steps: ['Assumptions', 'Breakdown', 'Calculation', 'Sanity check'] };
+  if (card.track === 'Technical') return { name: 'Structure', steps: ['Direct answer', 'Explanation', 'Example with numbers'] };
+  return { name: 'STAR', steps: ['Situation', 'Task', 'Action', 'Result'] };
+}
 const pick = a => a[Math.floor(Math.random() * a.length)];
 function verdictOf(score) {
   if (!score) return { cls: 'peek', label: 'Revealed', css: '' };
@@ -77,23 +94,40 @@ function cardFlow(container, cardId, { onRated, mode = 'practice', combo = () =>
   const started = Date.now();
   let revealed = false, rated = false, score = null;
   const showQ = layout !== 'ws';
+  const fw = frameworkFor(card);
   container.innerHTML = `
     <div class="grid" style="gap:14px">
-      ${showQ ? `<div class="row spread"><div class="row" style="gap:6px">${diffPill(card.difficulty)}<span class="pill">${h(card.category)}</span></div><button class="icon-btn" id="cf-speak" title="Read it out loud" aria-label="Read the question aloud">${I.speak}</button></div>
+      ${showQ ? `<div class="row spread"><div class="row" style="gap:6px">${diffPill(card.difficulty)}<span class="pill">${h(card.category)}</span></div><button class="icon-btn" id="cf-speak" title="Read the question aloud" aria-label="Read the question aloud">${I.speak}</button></div>
       <div class="q-text">${h(card.q)}</div>` : ''}
-      <div class="editor">
-        <div class="editor-bar"><span class="file"><i></i>answer.md</span><span class="faint">answer as you would in the interview</span><span class="sp"><span class="timer" id="cf-timer">0:00</span>${showQ ? '' : `<button class="icon-btn" id="cf-speak" title="Read it out loud" aria-label="Read the question aloud">${I.speak}</button>`}</span></div>
-        <div class="editor-body"><pre class="gutter" id="cf-gutter" aria-hidden="true">1</pre><textarea id="cf-answer" spellcheck="true" aria-label="Your answer" placeholder="// your answer here&#10;// Ctrl+Enter to submit, Space to peek"></textarea></div>
-        <div class="editor-foot" id="cf-actions"><span class="hint">${layout === 'ws' ? 'Ctrl+Enter submit' : 'Ctrl+Enter submit · Space peek'}</span><button class="btn sm ghost" id="cf-reveal">Peek answer</button><button class="btn sm" id="cf-run">${I.play} Run</button><button class="btn sm go" id="cf-submit">Submit</button></div>
+      <div class="pad">
+        <div class="pad-head"><span class="pad-title">Your answer</span><span class="pad-meta"><span id="cf-words">0 words</span><span aria-hidden="true">·</span><span id="cf-spoken">0 sec spoken</span><span aria-hidden="true">·</span><span class="timer" id="cf-timer">0:00</span>${showQ ? '' : `<button class="icon-btn" id="cf-speak" title="Read the question aloud" aria-label="Read the question aloud">${I.speak}</button>`}</span></div>
+        <div class="fw" aria-label="Answer framework"><span class="fw-label">${h(fw.name)}</span>${fw.steps.map(x => `<button type="button" class="fw-chip" data-fw="${h(x)}">${h(x)}</button>`).join('')}</div>
+        <textarea id="cf-answer" spellcheck="true" aria-label="Your answer" placeholder="Answer the way you would say it to the interviewer. Aim for one to two minutes spoken."></textarea>
+        <div class="pad-foot" id="cf-actions"><span class="hint">${layout === 'ws' ? 'Ctrl+Enter to submit' : 'Ctrl+Enter to submit · Space to reveal'}</span><button class="btn sm ghost" id="cf-reveal">Reveal answer</button><button class="btn sm" id="cf-run">Check key points</button><button class="btn sm go" id="cf-submit">Submit</button></div>
       </div>
       <div id="cf-run-out"></div>
       <div id="cf-result" hidden></div>
     </div>`;
-  const ta = $('#cf-answer', container), gut = $('#cf-gutter', container);
-  const syncGutter = () => { const n = Math.max(ta.value.split('\n').length, Math.ceil(ta.scrollHeight / 23)); gut.textContent = Array.from({ length: Math.min(n, 400) }, (_, i) => i + 1).join('\n'); gut.scrollTop = ta.scrollTop; };
-  ta.addEventListener('input', syncGutter); ta.addEventListener('scroll', () => gut.scrollTop = ta.scrollTop);
+  const ta = $('#cf-answer', container);
+  const syncStats = () => {
+    const w = ta.value.trim().split(/\s+/).filter(Boolean).length;
+    const sec = Math.round(w / 150 * 60);
+    $('#cf-words', container).textContent = `${w} word${w === 1 ? '' : 's'}`;
+    const sp = $('#cf-spoken', container);
+    sp.textContent = sec < 60 ? `${sec} sec spoken` : `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')} spoken`;
+    sp.classList.toggle('long', sec > 150);
+    ta.style.height = 'auto'; ta.style.height = Math.max(170, ta.scrollHeight + 2) + 'px';
+  };
+  ta.addEventListener('input', syncStats);
+  container.querySelectorAll('[data-fw]').forEach(b => b.onclick = () => {
+    if (ta.readOnly) return;
+    const pre = ta.value && !ta.value.endsWith('\n') ? '\n' : '';
+    ta.value += `${pre}${b.dataset.fw}: `;
+    b.classList.add('used');
+    ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); syncStats();
+  });
   if (presetAnswer != null) ta.value = presetAnswer;
-  syncGutter();
+  syncStats();
   const timerEl = $('#cf-timer', container);
   const tick = setInterval(() => {
     if (!document.body.contains(timerEl)) return clearInterval(tick);
@@ -108,9 +142,9 @@ function cardFlow(container, cardId, { onRated, mode = 'practice', combo = () =>
   $('#cf-run', container).onclick = () => {
     const out = $('#cf-run-out', container);
     const a = ta.value.trim();
-    if (!a) { out.innerHTML = `<div class="console"><div class="console-head">Test Result</div><div class="console-body"><span class="faint">Write an answer first. A rough outline is fine.</span></div></div>`; return; }
+    if (!a) { out.innerHTML = `<div class="console"><div class="console-head">Key points check</div><div class="console-body"><span class="faint">Write your answer first. A rough outline is fine.</span></div></div>`; return; }
     const sc = Scoring.scoreAnswer(a, card.a), hits = sc.hits.filter(x => x.hit).length;
-    out.innerHTML = `<div class="console"><div class="console-head">Test Result <span class="faint" style="margin-left:auto;font-weight:600">run, not submitted</span></div><div class="console-body"><div class="row spread"><span class="verdict ${verdictOf(sc).css}">${hits} / ${sc.hits.length} concepts hit</span><span class="faint mono" style="font-size:.8rem">${sc.words} words</span></div><div class="cases">${sc.hits.map(x => `<span class="case ${x.hit ? 'hit' : 'hidden-case'}">${x.hit ? h(x.term) : 'hidden'}</span>`).join('')}</div><span class="faint" style="font-size:.82rem">Missing concepts stay hidden until you submit.</span></div></div>`;
+    out.innerHTML = `<div class="console"><div class="console-head">Key points check <span class="faint" style="margin-left:auto;font-weight:500">not submitted</span></div><div class="console-body"><span class="verdict ${verdictOf(sc).css}">${hits} of ${sc.hits.length} key points covered</span><div class="cases">${sc.hits.map(x => `<span class="case ${x.hit ? 'hit' : 'hidden-case'}">${x.hit ? h(x.term) : 'hidden'}</span>`).join('')}</div><span class="faint" style="font-size:.82rem">Missing points stay hidden until you submit.</span></div></div>`;
   };
   if (presetAnswer != null) setTimeout(() => reveal(true), 0);
 
@@ -132,14 +166,14 @@ function cardFlow(container, cardId, { onRated, mode = 'practice', combo = () =>
     const rates = `<div class="rates">${['again', 'hard', 'good', 'easy'].map((k, i) => `<button class="rate ${k} ${sug === k ? 'suggested' : ''}" data-r="${i + 1}">${RATE_LABELS[i + 1]}<small>${iv[k]}</small><kbd>${i + 1}</kbd></button>`).join('')}</div>`;
     res.innerHTML = `
       <div class="grid" style="gap:14px">
-        <div class="console"><div class="console-head">Submission <span class="faint mono" style="margin-left:auto;font-weight:600">${secs}s</span></div><div class="console-body">
-          <div class="row spread"><span class="verdict ${v.css}">${v.label}</span>${score ? `<span class="mono" style="font-weight:800">${score.hits.filter(x => x.hit).length} / ${score.hits.length} concepts</span>` : ''}</div>
+        <div class="console"><div class="console-head">Result <span class="faint" style="margin-left:auto;font-weight:500">answered in ${secs}s</span></div><div class="console-body">
+          <div class="row spread"><span class="verdict ${v.css}">${v.label}</span>${score ? `<span style="font-weight:600">${score.hits.filter(x => x.hit).length} of ${score.hits.length} key points</span>` : ''}</div>
           ${score ? `<div class="bar"><i style="width:${score.coverage}%;background:var(--${v.css === 'ac' ? 'go' : v.css === 'pa' ? 'shaky' : 'again'})"></i></div><div class="cases">${score.hits.map(x => `<span class="case ${x.hit ? 'hit' : ''}">${h(x.term)}</span>`).join('')}</div>` : ''}
           <div><div class="eyebrow" style="margin-bottom:8px">Model answer</div><div class="answer-text model">${paras(card.a)}</div></div>
           <div id="cf-coach"></div>
         </div></div>
         ${layout === 'ws' ? `<div class="grid" style="gap:8px"><div class="row spread"><span class="eyebrow">How well did you know it?</span>${sug ? '<span class="faint" style="font-size:.78rem">outlined = suggested</span>' : ''}</div>${rates}</div>`
-          : `<div class="sheet ${v.cls === 'peek' ? '' : v.cls}"><div class="sheet-msg">${h(pick(VIBES[v.cls]))}</div>${rates}</div>`}
+          : `<div class="sheet ${v.cls === 'peek' ? '' : v.cls}">${boSays(v.cls === 'ok' ? 'cheer' : v.cls === 'mid' ? 'think' : 'gentle', h(pick(VIBES[v.cls])), 52)}${rates}</div>`}
       </div>`;
     res.querySelectorAll('.rate').forEach(b => b.onclick = () => rate(+b.dataset.r));
     coachBlock($('#cf-coach', res), card, answer);

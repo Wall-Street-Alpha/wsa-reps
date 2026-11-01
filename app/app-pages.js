@@ -39,12 +39,13 @@ Pages.today = el => {
     <div class="home">
       <div class="grid" style="gap:18px">
         <div class="card lockin">
-          <div><div class="eyebrow">today's reps</div><h2 style="margin-top:8px">${queueLen ? `${queueLen} card${queueLen === 1 ? '' : 's'} ready` : 'All caught up'}</h2>
+          ${boSays(goalPct >= 1 ? 'cheer' : queueLen ? 'happy' : 'think', h(goalPct >= 1 ? boLine('home_goal') : p.streak >= 2 && queueLen ? boLine('home_streak', { streak: p.streak }) : queueLen ? boLine('home_queue', { n: queueLen }) : boLine('home_clear')), 84)}
+          <div><div class="eyebrow">Today's reps</div><h2 style="margin-top:8px">${queueLen ? `${queueLen} card${queueLen === 1 ? '' : 's'} ready` : 'All caught up'}</h2>
             <p class="muted" style="margin-top:6px">${queueLen ? `Reviews first, then fresh ones. About ${Math.max(1, Math.round(queueLen * 0.6))} minutes.` : 'Nothing is due. Continue the learning path or run a mock interview.'}</p></div>
           <div class="ticker"><div class="tick"><b>${c.due}</b><span>due now</span></div><div class="tick"><b>${c.newToday}</b><span>new today</span></div><div class="tick"><b>${c.learning}</b><span>learning</span></div></div>
           <div class="row">${queueLen ? `<a class="btn go big" href="#session">Start reps</a>` : `<a class="btn go big" href="#path">Keep learning</a>`}<a class="btn big" href="#mock">Mock interview</a></div>
         </div>
-        ${dq ? `<div class="card daily"><div class="cal-ico">${new Date().toLocaleDateString(undefined, { month: 'short' }).toUpperCase()}<b>${new Date().getDate()}</b></div><div style="min-width:0"><div class="eyebrow" style="color:var(--brand)">question of the day</div><a class="dq" href="#p-${dq.id}">${h(dq.q)}</a><div class="row" style="gap:8px;margin-top:4px">${diffText(dq.difficulty)}<span class="faint" style="font-size:.8rem">${h(dq.category)}</span></div></div><a class="btn brand" href="#p-${dq.id}">Solve</a></div>` : ''}
+        ${dq ? `<div class="card daily"><div class="cal-ico">${new Date().toLocaleDateString(undefined, { month: 'short' }).toUpperCase()}<b>${new Date().getDate()}</b></div><div style="min-width:0"><div class="eyebrow" style="color:var(--brand)">Question of the day</div><a class="dq" href="#p-${dq.id}">${h(dq.q)}</a><div class="row" style="gap:8px;margin-top:4px">${diffText(dq.difficulty)}<span class="faint" style="font-size:.8rem">${h(dq.category)}</span></div></div><a class="btn brand" href="#p-${dq.id}">Solve</a></div>` : ''}
         <div class="grid cols-2">
           <div class="card grid" style="gap:12px;align-content:start"><div class="row spread"><h3>Weak spots</h3><a href="#progress" class="faint" style="font-size:.82rem">see all</a></div>
             ${weak.length ? weak.map(u => `<div class="grid" style="gap:6px"><div class="row spread"><b style="font-size:.92rem">${h(u.name)}</b><button class="btn sm" data-drill="${h(u.name)}">Drill</button></div><div class="bar"><i style="width:${u.mastery}%;background:${u.mastery < 30 ? 'var(--again)' : u.mastery < 60 ? 'var(--shaky)' : 'var(--go)'}"></i></div><span class="faint mono" style="font-size:.74rem">${u.mastery}% mastery</span></div>`).join('') : '<p class="muted">Review a few cards and your weakest topics will show here.</p>'}
@@ -64,24 +65,34 @@ Pages.today = el => {
           <div class="row spread"><h3>Solved</h3><span class="mono" style="font-weight:800">${all.n}<span class="faint">/${all.of}</span></span></div>
           ${byD.map(([d, x]) => `<div class="srow"><span class="diff ${d.toLowerCase()}">${d}</span><div class="bar"><i style="width:${x.of ? Math.round(100 * x.n / x.of) : 0}%;background:var(--${d.toLowerCase()})"></i></div><span class="mono faint">${x.n}/${x.of}</span></div>`).join('')}
         </div>
-        <div class="card grid" style="gap:10px"><div class="row spread"><h3>${new Date().toLocaleDateString(undefined, { month: 'long' })} streak</h3><span class="faint mono" style="font-size:.76rem">best ${p.best || 0}d</span></div>${monthCal()}</div>
+        <div class="card grid" style="gap:10px" id="cal-box"></div>
       </div>
     </div>
   </div>`;
   el.querySelectorAll('[data-drill]').forEach(b => b.onclick = () => startSession({ mode: 'category', ids: buildCategoryQueue(b.dataset.drill), title: b.dataset.drill }));
+  drawCal($('#cal-box', el));
 };
 
-function monthCal() {
-  const active = new Set(allLogs().map(e => dayKey(e[0])));
-  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
-  const first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
-  let out = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => `<span>${d}</span>`).join('');
-  for (let i = 0; i < first; i++) out += '<i></i>';
+let CAL_OFFSET = 0;
+function drawCal(box) {
+  const counts = {};
+  for (const e of allLogs()) { const k = dayKey(e[0]); counts[k] = (counts[k] || 0) + 1; }
+  const now = new Date(), view = new Date(now.getFullYear(), now.getMonth() + CAL_OFFSET, 1);
+  const y = view.getFullYear(), m = view.getMonth();
+  const first = view.getDay(), days = new Date(y, m + 1, 0).getDate(), todayKey = dayKey();
+  let cells = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => `<span>${d}</span>`).join('');
+  let active = 0;
+  for (let i = 0; i < first; i++) cells += '<i></i>';
   for (let d = 1; d <= days; d++) {
-    const k = dayKey(new Date(y, m, d).getTime());
-    out += `<i class="${active.has(k) ? 'on' : ''} ${d === now.getDate() ? 'today' : ''} ${d > now.getDate() ? 'future' : ''}" title="${k}">${d}</i>`;
+    const t = new Date(y, m, d), k = dayKey(t.getTime()), n = counts[k] || 0;
+    if (n) active++;
+    cells += `<i class="${n ? 'on' : ''} ${k === todayKey ? 'today' : ''} ${t > now ? 'future' : ''}" title="${k}: ${n} review${n === 1 ? '' : 's'}">${d}</i>`;
   }
-  return `<div class="cal">${out}</div>`;
+  const label = view.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  box.innerHTML = `<div class="row spread"><h3>Streak calendar</h3><div class="row" style="gap:4px"><button class="icon-btn" data-cal="-1" aria-label="Previous month">&lsaquo;</button><span style="font-weight:600;font-size:.88rem;min-width:118px;text-align:center">${h(label)}</span><button class="icon-btn" data-cal="1" aria-label="Next month" ${CAL_OFFSET >= 0 ? 'disabled' : ''}>&rsaquo;</button></div></div>
+    <div class="cal">${cells}</div>
+    <div class="row spread faint" style="font-size:.8rem"><span>${active} active day${active === 1 ? '' : 's'} this month</span><span>Best streak ${S.profile.best || 0} day${S.profile.best === 1 ? '' : 's'}</span></div>`;
+  box.querySelectorAll('[data-cal]').forEach(b => b.onclick = () => { CAL_OFFSET = Math.min(0, CAL_OFFSET + +b.dataset.cal); drawCal(box); });
 }
 
 function heatmap(weeks) {
@@ -118,7 +129,7 @@ Pages.path = el => {
     }).join('');
     return `<section class="unit"><div class="unit-head" style="background:${c1}"><div><div class="sub">Unit ${ui + 1} · ${h(u.track)}</div><h2>${h(u.name)}</h2></div><div class="row"><span class="sub">${u.mastery}%</span><button class="btn sm" style="background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.35)" data-drill="${h(u.name)}">Practice</button></div></div><div class="trail">${nodes}</div></section>`;
   };
-  el.innerHTML = `<div class="page" style="max-width:620px"><div class="hello"><div class="eyebrow">learn</div><h1>Learning path</h1><p class="muted">Fit questions first, then technicals. Each unit is a topic and each lesson is 8 questions. Complete a lesson for a check mark; master it for a crown.</p></div>
+  el.innerHTML = `<div class="page" style="max-width:620px"><div class="hello"><div class="eyebrow">Learn</div><h1>Learning path</h1><p class="muted">Fit questions first, then technicals. Each unit is a topic and each lesson is 8 questions. Complete a lesson for a check mark; master it for a crown.</p></div>
     ${all.length ? all.map(unitHtml).join('') : `<div class="card empty"><h2>No questions yet</h2><a class="btn go" href="#import">Import a question bank</a></div>`}</div>`;
   el.querySelectorAll('.node').forEach(b => b.onclick = () => {
     const u = all[+b.dataset.unit], ls = u.lessons[+b.dataset.lesson];
@@ -132,7 +143,7 @@ Pages.problems = el => {
   const catCount = new Map();
   for (const c of S.cards) catCount.set(c.category, (catCount.get(c.category) || 0) + 1);
   const dq = dailyQuestion();
-  el.innerHTML = `<div class="page"><div class="row spread"><div class="hello"><div class="eyebrow">problem set</div><h1>Problems</h1></div><div class="row"><button class="btn" id="pick">${I.bolt} Random</button><a class="btn brand" href="#import">Import</a></div></div>
+  el.innerHTML = `<div class="page"><div class="row spread"><div class="hello"><div class="eyebrow">Problem set</div><h1>Problems</h1></div><div class="row"><button class="btn" id="pick">${I.bolt} Random</button><a class="btn brand" href="#import">Import</a></div></div>
     <div class="topics" role="toolbar" aria-label="Topics"><button class="topic" data-cat="" aria-pressed="${!PF.cat}">All topics <b>${S.cards.length}</b></button>${[...catCount].map(([c, n]) => `<button class="topic" data-cat="${h(c)}" aria-pressed="${PF.cat === c}">${h(c)} <b>${n}</b></button>`).join('')}</div>
     <div class="filters">
       <input class="input search" id="f-q" type="search" placeholder="Search questions" value="${h(PF.q)}" aria-label="Search">
@@ -260,7 +271,8 @@ function sessionDone(el) {
   const extended = S.profile.streak > ss.streakBefore;
   SESSION = null;
   el.innerHTML = `<div class="page" style="max-width:640px"><div class="card done-hero">
-    <div class="eyebrow">session complete</div><div class="big-num">+${ss.xp} XP</div>
+    ${boSays(acc >= 60 ? 'cheer' : 'gentle', h(boLine(acc >= 60 ? 'done_good' : 'done_ok')), 96)}
+    <div class="eyebrow">Session complete</div><div class="big-num">+${ss.xp} XP</div>
     <h1>${acc >= 80 ? 'Excellent session.' : acc >= 50 ? 'Solid session.' : 'Session complete.'}</h1>
     <p class="muted">${extended ? `Streak extended to ${S.profile.streak} day${S.profile.streak === 1 ? '' : 's'}.` : `${S.profile.streak}-day streak.`}</p>
     <div class="ticker" style="width:100%"><div class="tick"><b>${acc}%</b><span>accuracy</span></div><div class="tick"><b>${ss.done}</b><span>cards</span></div><div class="tick"><b>${mins}m</b><span>time</span></div></div>

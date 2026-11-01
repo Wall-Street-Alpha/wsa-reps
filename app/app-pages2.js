@@ -3,7 +3,7 @@ let MOCK = null;
 Pages.mock = el => {
   if (MOCK && MOCK.phase === 'run') return mockRun(el);
   if (MOCK && MOCK.phase === 'review') return mockReview(el);
-  el.innerHTML = `<div class="page" style="max-width:720px"><div class="hello"><div class="eyebrow">superday simulator</div><h1>Mock interview</h1><p class="muted">Questions back to back with a two-minute clock each, read aloud. Answers appear at the end, and each question is then scheduled for review.</p></div>
+  el.innerHTML = `<div class="page" style="max-width:720px"><div class="hello"><div class="eyebrow">Superday simulator</div><h1>Mock interview</h1><p class="muted">Questions back to back with a two-minute clock each. Tap the speaker to hear a question. Answers appear at the end, and each question is then scheduled for review.</p></div>
     <div class="card grid" style="gap:16px">
       <label class="field" for="m-track">Track<select class="input" id="m-track"><option value="Mixed">Mixed</option><option value="Behavioral">Behavioral / fit</option><option value="Technical">Technical</option></select></label>
       <label class="field" for="m-count">Questions<select class="input" id="m-count"><option>5</option><option>8</option><option>12</option></select></label>
@@ -25,10 +25,11 @@ function mockRun(el) {
   const t0 = Date.now(), LIMIT = 120;
   el.innerHTML = `<div class="page" style="max-width:760px"><div class="session-top"><button class="icon-btn" id="m-quit" aria-label="End interview">${I.x}</button><div class="progress"><i style="width:${Math.round(100 * m.i / m.ids.length)}%"></i></div><span class="timer" id="m-timer" style="font-size:1.1rem">2:00</span></div>
     <div class="card grid" style="gap:14px"><div class="row spread"><span class="eyebrow">Question ${m.i + 1} of ${m.ids.length}</span><button class="icon-btn" id="m-speak" aria-label="Read aloud">${I.speak}</button></div><div class="q-text">${h(card.q)}</div>
-      <textarea class="input" id="m-ans" style="min-height:200px" placeholder="Answer as if you're in the room." aria-label="Your answer"></textarea>
+      <div class="pad"><div class="fw" style="padding-bottom:0"><span class="fw-label">${h(frameworkFor(card).name)}</span>${frameworkFor(card).steps.map(x => `<button type="button" class="fw-chip" data-fw="${h(x)}">${h(x)}</button>`).join('')}</div><textarea id="m-ans" style="min-height:200px" placeholder="Answer the way you would say it to the interviewer." aria-label="Your answer"></textarea></div>
       <div class="row spread"><span class="faint" style="font-size:.82rem">Tip: on a Mac, press Fn twice to dictate your answer.</span><button class="btn go" id="m-next">${m.i + 1 === m.ids.length ? 'Finish' : 'Next question'}</button></div></div></div>`;
   const ta = $('#m-ans', el); ta.focus({ preventScroll: true });
-  speak(card.q);
+  const fw = frameworkFor(card);
+  el.querySelectorAll('[data-fw]').forEach(b => b.onclick = () => { const pre = ta.value && !ta.value.endsWith('\n') ? '\n' : ''; ta.value += `${pre}${b.dataset.fw}: `; b.classList.add('used'); ta.focus(); });
   const timer = setInterval(() => {
     const left = LIMIT - Math.floor((Date.now() - t0) / 1000), tEl = $('#m-timer', el);
     if (!tEl) return clearInterval(timer);
@@ -46,23 +47,36 @@ function mockRun(el) {
 }
 function mockReview(el) {
   const m = MOCK;
+  m.ratings ||= [];
   if (m.r >= m.ids.length) {
     S.profile.mocks = (S.profile.mocks || 0) + 1; finishSessionBonus();
-    const covs = m.ids.map((id, i) => m.answers[i] ? Scoring.scoreAnswer(m.answers[i], S.byId.get(id).a).coverage : 0);
-    const avg = Math.round(covs.reduce((a, b) => a + b, 0) / covs.length);
+    const rows = m.ids.map((id, i) => {
+      const card = S.byId.get(id), ans = (m.answers[i] || '').trim();
+      return { card, r: m.ratings[i] || 0, cov: ans ? Scoring.scoreAnswer(ans, card.a).coverage : null, secs: Math.round((m.times[i] || 0) / 1000) };
+    });
+    const n = rows.length, good = rows.filter(x => x.r >= 3).length;
+    const answered = rows.filter(x => x.cov != null);
+    const avgCov = answered.length ? Math.round(answered.reduce((t, x) => t + x.cov, 0) / answered.length) : null;
+    const avgSecs = Math.round(rows.reduce((t, x) => t + x.secs, 0) / n);
+    const pct = good / n;
+    const head = pct >= 0.8 ? 'Strong performance.' : pct >= 0.5 ? 'Solid, with a few to tighten.' : 'Worth another pass on these.';
     MOCK = null;
-    el.innerHTML = `<div class="page" style="max-width:640px"><div class="card done-hero"><div class="eyebrow">mock interview complete</div><div class="big-num">${avg}%</div><h1>${avg >= 60 ? 'Strong performance.' : avg >= 35 ? 'Good foundation. Room to improve.' : 'Keep practicing these.'}</h1><p class="muted">Average concept coverage. Every question is now on your review schedule.</p><div class="row" style="justify-content:center"><a class="btn go" href="#mock">Run another</a><a class="btn" href="#today">Done</a></div></div></div>`;
+    el.innerHTML = `<div class="page" style="max-width:820px"><div class="card done-hero">${boSays(pct >= 0.5 ? 'cheer' : 'gentle', h(pct >= 0.5 ? 'Nice work in the room. Review the misses and run it again soon.' : 'Tough set. Review these and they\'ll come back easier.'), 96)}<div class="eyebrow">Mock interview complete</div><div class="big-num">${good} of ${n}</div><h1>${head}</h1><p class="muted">Answered well, based on your own ratings. Every question is now on your review schedule.</p>
+      <div class="ticker" style="width:100%"><div class="tick"><b>${Math.round(pct * 100)}%</b><span>rated Good or Easy</span></div><div class="tick"><b>${avgCov == null ? '–' : avgCov + '%'}</b><span>key points covered</span></div><div class="tick"><b>${Math.floor(avgSecs / 60)}:${String(avgSecs % 60).padStart(2, '0')}</b><span>avg time per answer</span></div></div>
+      <div class="row" style="justify-content:center"><a class="btn go" href="#mock">Run another</a><a class="btn" href="#today">Done</a></div></div>
+      <div class="table-wrap"><table class="tbl"><thead><tr><th>Question</th><th>Your rating</th><th>Key points</th><th>Time</th></tr></thead><tbody>${rows.map(x => `<tr><td><a class="q-link" style="-webkit-line-clamp:2;min-width:220px" href="#p-${x.card.id}">${h(x.card.q)}</a></td><td style="font-weight:600;color:var(--${['ink-3', 'again', 'shaky', 'gotit', 'ez'][x.r]})">${RATE_LABELS[x.r] || '–'}</td><td class="num faint">${x.cov == null ? 'no answer' : x.cov + '%'}</td><td class="num faint">${x.secs}s</td></tr>`).join('')}</tbody></table></div>
+      <p class="faint" style="font-size:.82rem">Key points is an automatic keyword match against the model answer. It runs low on fit questions, where the model answer is guidance rather than a script, so your rating is the headline score.</p></div>`;
     confetti();
     return;
   }
   el.innerHTML = `<div class="page" style="max-width:760px"><div class="row spread"><div><div class="eyebrow">Review</div><h2>Question ${m.r + 1} of ${m.ids.length}</h2></div><span class="faint num">${Math.round(m.times[m.r] / 1000)}s spent</span></div><div class="card" id="m-flow"></div></div>`;
-  cardFlow($('#m-flow', el), m.ids[m.r], { mode: 'mock', layout: 'review', presetAnswer: m.answers[m.r] || '', presetMs: m.times[m.r], onRated: () => { m.r++; Pages.mock(el); } });
+  cardFlow($('#m-flow', el), m.ids[m.r], { mode: 'mock', layout: 'review', presetAnswer: m.answers[m.r] || '', presetMs: m.times[m.r], onRated: r => { m.ratings[m.r] = r; m.r++; Pages.mock(el); } });
 }
 
 // Import
 let IMP = null;
 Pages.import = el => {
-  el.innerHTML = `<div class="page"><div class="hello"><div class="eyebrow">import</div><h1>Import a question bank</h1><p class="muted">PDF, Word, text, CSV or JSON. Questions and answers are extracted in your browser; the file itself is never uploaded.</p></div>
+  el.innerHTML = `<div class="page"><div class="hello"><div class="eyebrow">Import</div><h1>Import a question bank</h1><p class="muted">PDF, Word, text, CSV or JSON. Questions and answers are extracted in your browser; the file itself is never uploaded.</p></div>
     <div class="tabs" role="tablist"><button role="tab" aria-selected="true" data-tab="file">Upload a file</button><button role="tab" aria-selected="false" data-tab="paste">Paste text</button></div>
     <div id="imp-file"><label class="drop" id="drop" for="imp-input"><b style="font-size:1.05rem">Drop a file here or tap to choose</b><span class="faint">.pdf, .docx, .txt, .md, .csv, .json</span><input id="imp-input" type="file" accept=".pdf,.docx,.txt,.md,.csv,.json" hidden></label></div>
     <div id="imp-paste" hidden class="grid" style="gap:10px"><textarea class="input" id="imp-text" style="min-height:220px" placeholder="Paste questions. Works with numbered lists (1. Question? then the answer), Q: / A: pairs, or questions ending in a question mark."></textarea><button class="btn go" id="imp-parse" style="justify-self:start">Find questions</button></div>
@@ -158,7 +172,7 @@ Pages.progress = el => {
   for (const c of S.cards) { const s = S.st[c.id]; if (!s || s.state === 0) continue; const d = Math.max(0, Math.floor((s.due - now) / DAY_MS)); if (d < 14) fc[d].n++; }
   const us = units();
   const diffs = ['Easy', 'Medium', 'Hard'].map(d => { const cs = S.cards.filter(c => c.difficulty === d); return { d, n: cs.length, m: cs.length ? Math.round(cs.reduce((a, c) => a + SRS.mastery(S.st[c.id]), 0) / cs.length) : 0 }; });
-  el.innerHTML = `<div class="page"><div class="hello"><div class="eyebrow">progress</div><h1>Your progress</h1><p class="muted" style="margin-top:6px">${Store.mode !== 'local' ? 'Synced to your account. Sign in on any device to pick up where you left off.' : 'Saved in this browser.'}</p></div>
+  el.innerHTML = `<div class="page"><div class="hello"><div class="eyebrow">Progress</div><h1>Your progress</h1><p class="muted" style="margin-top:6px">${Store.mode !== 'local' ? 'Synced to your account. Sign in on any device to pick up where you left off.' : 'Saved in this browser.'}</p></div>
     <div class="grid cols-4">
       ${[['Level ' + levelOf(p.xp), p.xp + ' XP'], ['Current streak', p.streak + 'd'], ['Best streak', (p.best || 0) + 'd'], ['Retention (30d)', retention == null ? '–' : retention + '%'], ['Mastered', st.mastered], ['Learning', st.learning], ['New', st.new], ['Study time', studyMin >= 60 ? (studyMin / 60).toFixed(1) + 'h' : studyMin + 'm']].map(([l, v]) => `<div class="card stat"><span>${l}</span><b>${v}</b></div>`).join('')}
     </div>
@@ -184,7 +198,7 @@ function barChart(vals, labels, color) {
 Pages.prefs = el => {
   const p = S.profile;
   const theme = Store.lsGet('theme') || 'system';
-  el.innerHTML = `<div class="page" style="max-width:760px"><div class="hello"><div class="eyebrow">settings</div><h1>Prefs</h1></div>
+  el.innerHTML = `<div class="page" style="max-width:760px"><div class="hello"><div class="eyebrow">Settings</div><h1>Prefs</h1></div>
     <div class="card grid" style="gap:16px">
       <label class="field" for="p-name">Display name<input class="input" id="p-name" value="${h(p.name)}" placeholder="${h(S.viewer || 'Your name')}"></label>
       <div class="grid cols-2">
@@ -278,7 +292,7 @@ function authScreen() {
     const draw = (msg = '', kind = '') => {
       const em0 = $('#a-email'), nm0 = $('#a-name');
       if (em0) keep.email = em0.value; if (nm0) keep.name = nm0.value;
-      $('#view').innerHTML = `<div class="page" style="max-width:440px;padding-top:6vh"><div class="grid" style="gap:6px;text-align:center"><div class="logo" style="justify-content:center;font-size:1.4rem"><span class="mark">WSA</span>WSA Reps</div><h1 style="margin-top:10px">IB interview prep <span class="grad">that sticks.</span></h1><p class="muted">Practice banking technicals and fit questions every day, with spaced repetition scheduling what to review next.</p></div>
+      $('#view').innerHTML = `<div class="page" style="max-width:440px;padding-top:6vh"><div class="grid" style="gap:6px;text-align:center"><div style="justify-self:center">${boSays('happy', h(boLine('auth')), 72)}</div><div class="logo" style="justify-content:center;font-size:1.4rem;margin-top:8px"><span class="mark">WSA</span>WSA Reps</div><h1 style="margin-top:10px">IB interview prep <span class="grad">that sticks.</span></h1><p class="muted">Practice banking technicals and fit questions every day, with spaced repetition scheduling what to review next.</p></div>
         <form class="card grid" id="auth" style="gap:14px" novalidate>
           <div class="tabs" role="tablist" style="justify-self:center"><button type="button" role="tab" aria-selected="${!modeSU}" data-m="in">Sign in</button><button type="button" role="tab" aria-selected="${modeSU}" data-m="up">Create account</button></div>
           ${modeSU ? `<label class="field" for="a-name">Name<input class="input" id="a-name" autocomplete="name" required value="${h(keep.name)}"></label>` : ''}
