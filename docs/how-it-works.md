@@ -53,6 +53,33 @@ Only people listed in `app_admins` can call those functions. Students still can'
 - **Imports:** CSV files can include a `banks` column, for example `Goldman Sachs; Evercore`.
 - **Filters:** the Problems page filters by topic, bank, difficulty, status and deck.
 
+## Friends, challenges and Superday
+
+- **Invite links:** every student has one on the Friends page. When a friend signs up through it, the inviter gets 50 XP and sees the friend's name. Stored in the `referrals` table.
+- **Challenges:** a student picks a topic and a number of questions, answers the set first to set a score, then shares the link. Friends who open it are asked to sign up, then take the same questions. Everyone's score goes on that challenge's leaderboard, ranked by score and then time. Stored in the `challenges` and `challenge_results` tables.
+- **Superday mode** on the Mock page is three back-to-back rounds of four questions:
+  - Analyst: story and fit
+  - Vice President: core technicals
+  - Managing Director: deals, judgment and fit
+
+  Each round opens with an interviewer introduction and a tip. The results show a score for each round and an overall readiness verdict.
+
+## Email on every sign-up
+
+Supabase can't send you email by itself, so this uses a free email service called Resend. The pieces are in the repo:
+- **`supabase/functions/notify-signup`:** a small server function that sends the email.
+- **`supabase/notify-setup.sql`:** a database trigger that calls that function whenever a new account is created. A failed email never blocks a sign-up.
+
+To turn it on:
+1. Sign up at resend.com with the email you want the alerts sent to, and create an API key.
+2. In Supabase, go to Edge Functions, create a function named `notify-signup`, and paste in the code from `supabase/functions/notify-signup/index.ts`. Turn off "Verify JWT" for this function, then deploy.
+3. In Supabase, go to Edge Functions, then Secrets, and add:
+   - `RESEND_API_KEY`: your Resend key
+   - `NOTIFY_EMAIL`: your email
+   - `WEBHOOK_SECRET`: any long random phrase
+4. In SQL Editor, paste `supabase/notify-setup.sql`, replace `PASTE_THE_SAME_WEBHOOK_SECRET` with that same phrase, and run it.
+5. Create a test account in the app. The email should arrive within a minute.
+
 ## Logging and monitoring
 
 Standard practice for an app this size is three layers. All three are in place except the uptime ping.
@@ -63,7 +90,7 @@ Standard practice for an app this size is three layers. All three are in place e
 | **Error reports** | Is anything breaking for students, and on which device | Admin > Errors. Raw rows in `app_errors`. |
 | **Platform logs** | Sign-in failures, API errors, deploy failures | Supabase > Logs; GitHub > Actions |
 
-- **Events logged:** app opened (and whether it's the installed phone app), signed up, signed in, session completed, mock interview completed, deck imported, bank tagged, install clicked. No answer text is recorded.
+- **Events logged:** app opened (and whether it's the installed phone app), signed up, signed in, session completed, mock interview and Superday completed, deck imported, bank tagged, install clicked, invite shared, joined from an invite, and challenge created, shared and completed. No answer text is recorded.
 - **How events are sent:** in batches, and kept on the phone until there's a connection.
 - **Error reports:** capped at five per visit, so one bad bug can't flood the table. Each one records the message, page, device and app version, so you can tell which deploy caused it.
 - **Recommended next step:** set up a free uptime check at uptimerobot.com that loads the site and calls Supabase every few minutes. It emails you if either goes down, and the regular calls also stop Supabase from pausing the free project.

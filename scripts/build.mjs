@@ -17,7 +17,7 @@ if (process.env.SUPABASE_URL) cfg.supabaseUrl = process.env.SUPABASE_URL;
 if (process.env.SUPABASE_PUBLISHABLE_KEY) cfg.supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY;
 const target = process.argv[2] || 'artifact';
 const cfgJs = target === 'site' ? `window.WSA_CONFIG = ${JSON.stringify(cfg)};` : 'window.WSA_CONFIG = {};';
-const js = [cfgJs + `\nwindow.WSA_BUILD = '${new Date().toISOString().slice(0, 16)}';`, lib, r('app/store.js'), r('app/telemetry.js'), r('app/extract.js'), r('app/mascot.js'), r('app/app-core.js'), r('app/app-ui.js'), r('app/app-pages.js'), r('app/app-pages2.js')].join('\n\n');
+const js = [cfgJs + `\nwindow.WSA_BUILD = '${new Date().toISOString().slice(0, 16)}';`, lib, r('app/store.js'), r('app/telemetry.js'), r('app/extract.js'), r('app/mascot.js'), r('app/app-core.js'), r('app/app-ui.js'), r('app/app-pages.js'), r('app/app-pages2.js'), r('app/friends.js')].join('\n\n');
 const html = `<title>WSA Reps</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -27,7 +27,7 @@ const html = `<title>WSA Reps</title>
 ${r('app/styles.css')}
 </style>
 <header class="topnav"><div class="topnav-in">
-  <a class="logo" href="#today" aria-label="WSA Reps home"><span class="mark">WSA</span>WSA Reps</a>
+  <a class="logo" href="#today" aria-label="WSA Reps home"><span class="mark">WSA</span><span>WSA Reps</span></a>
   <nav class="navlinks" id="navlinks" aria-label="Main"></nav>
   <div class="nav-right"><span class="sync" id="sync"></span><span class="stat-pill fire" id="np-streak" title="Day streak"></span><span class="stat-pill xp" id="np-xp" title="Total XP"></span><a class="avatar" id="who" href="#prefs" aria-label="Prefs"></a></div>
 </div></header>

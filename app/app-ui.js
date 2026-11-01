@@ -10,6 +10,8 @@ const I = {
   flame: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 1.5-5 3-6 0 2 1 3 2 3 0-4-1-6 1-9z"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
   starO: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
+  friends: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M17 14.5c2.6 0 4.5 1.5 4.5 4"/></svg>',
+  trophy: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 3h10v2h3v3a5 5 0 0 1-4.6 5A5 5 0 0 1 13 15.9V18h3v3H8v-3h3v-2.1A5 5 0 0 1 8.6 13 5 5 0 0 1 4 8V5h3zm-1 4v1a3 3 0 0 0 1.2 2.4A7 7 0 0 1 7 9V7zm12 0v2c0 .5 0 .9-.2 1.4A3 3 0 0 0 18 8V7z"/></svg>',
   gem: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 3h10l4 6-9 12L3 9z"/></svg>',
   bolt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>',
   speak: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/></svg>',
@@ -22,7 +24,7 @@ const I = {
   sLearn: '<svg class="status" viewBox="0 0 20 20" style="color:var(--shaky)"><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 3a7 7 0 0 1 0 14z" fill="currentColor"/></svg>',
   sDone: '<svg class="status" viewBox="0 0 20 20" style="color:var(--gotit)"><circle cx="10" cy="10" r="8" fill="currentColor"/><path d="M6 10l3 3 5-6" fill="none" stroke="var(--panel)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
-const NAV = [['today', 'Home'], ['path', 'Learn'], ['problems', 'Problems'], ['mock', 'Mock'], ['progress', 'Progress'], ['import', 'Import']];
+const NAV = [['today', 'Home'], ['path', 'Learn'], ['problems', 'Problems'], ['mock', 'Mock'], ['friends', 'Friends'], ['progress', 'Progress'], ['import', 'Import']];
 const UNIT_COLORS = [['#2a62b0', '#1d4a87'], ['#1cb0f6', '#1593cf'], ['#2bb673', '#1f9459'], ['#7b61ff', '#5d47d6'], ['#ff9600', '#d97f00'], ['#ff6b8b', '#d9506f'], ['#00b8a9', '#00958a'], ['#3a74c4', '#2a5795']];
 
 const App = {

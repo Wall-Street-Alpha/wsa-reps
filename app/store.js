@@ -98,6 +98,43 @@ const Store = (() => {
   const adminEventCounts = days => rpc('admin_event_counts', { days });
   const adminErrors = lim => rpc('admin_recent_errors', { lim });
 
+  const inviteCode = () => sbUser ? sbUser.id.replace(/-/g, '').slice(0, 10) : '';
+  async function recordReferral(code, name) {
+    const { error } = await sb.from('referrals').insert({ inviter_code: code, invitee_name: (name || '').slice(0, 80) });
+    if (error && !/duplicate|violates/i.test(error.message)) throw error;
+  }
+  async function myReferrals() {
+    const { data, error } = await sb.from('referrals').select('invitee_name,created_at').eq('inviter_code', inviteCode()).order('created_at', { ascending: false });
+    if (error) throw error; return data;
+  }
+  async function createChallenge(row) {
+    const { error } = await sb.from('challenges').insert(row);
+    if (error) throw error;
+  }
+  async function getChallenge(id) {
+    const [c, r] = await Promise.all([
+      sb.from('challenges').select('id,creator,creator_name,title,questions,created_at').eq('id', id).maybeSingle(),
+      sb.from('challenge_results').select('user_id,name,score,total,seconds,created_at').eq('challenge_id', id).order('score', { ascending: false }).order('seconds', { ascending: true }),
+    ]);
+    if (c.error) throw c.error; if (r.error) throw r.error;
+    return { challenge: c.data, results: r.data };
+  }
+  async function postResult(row) {
+    const { error } = await sb.from('challenge_results').upsert({ ...row, user_id: sbUser.id });
+    if (error) throw error;
+  }
+  async function myChallenges() {
+    const [mine, taken] = await Promise.all([
+      sb.from('challenges').select('id,title,creator_name,created_at,questions').eq('creator', sbUser.id).order('created_at', { ascending: false }).limit(20),
+      sb.from('challenge_results').select('challenge_id').eq('user_id', sbUser.id).limit(50),
+    ]);
+    if (mine.error) throw mine.error;
+    const ids = (taken.data || []).map(r => r.challenge_id).filter(id => !(mine.data || []).some(c => c.id === id));
+    let others = [];
+    if (ids.length) { const o = await sb.from('challenges').select('id,title,creator_name,created_at,questions').in('id', ids); others = o.data || []; }
+    return { mine: mine.data || [], others };
+  }
+
   async function isAdmin() {
     if (mode !== 'account' || !sbUser) return false;
     try { const { data, error } = await sb.rpc('is_app_admin'); return !error && data === true; } catch { return false; }
@@ -269,5 +306,5 @@ const Store = (() => {
   function emit() { for (const f of listeners) f(status()); }
   const onStatus = f => { listeners.add(f); f(status()); };
 
-  return { init, loadAll, put, chunkCards, status, onStatus, viewerName, signIn, signUp, signOut, resetPassword, googleEnabled, signInGoogle, isAdmin, adminStudents, adminDocs, loadSharedTags, setSharedTags, insertEvents, reportError, adminActivity, adminEventCounts, adminErrors, get signedIn() { return !!sbUser; }, get email() { return sbUser?.email || ''; }, get client() { return sb; }, get userId() { return sbUser?.id || null; }, get mode() { return mode; }, lsGet, lsSet };
+  return { init, loadAll, put, chunkCards, status, onStatus, viewerName, signIn, signUp, signOut, resetPassword, googleEnabled, signInGoogle, isAdmin, adminStudents, adminDocs, loadSharedTags, setSharedTags, insertEvents, reportError, adminActivity, adminEventCounts, adminErrors, get signedIn() { return !!sbUser; }, inviteCode, recordReferral, myReferrals, createChallenge, getChallenge, postResult, myChallenges, get email() { return sbUser?.email || ''; }, get client() { return sb; }, get userId() { return sbUser?.id || null; }, get mode() { return mode; }, lsGet, lsSet };
 })();

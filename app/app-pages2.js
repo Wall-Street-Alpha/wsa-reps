@@ -1,14 +1,56 @@
 // Mock interview
 let MOCK = null;
+const SUPERDAY = [
+  { who: 'Analyst', initials: 'AN', color: '#1cb0f6', title: 'First round', focus: 'Your story and fit', tip: 'Keep each answer to about 90 seconds. Lead with the headline, then the detail.', pick: c => c.track === 'Behavioral' && !/why our|deal|pitch|stock/i.test(c.q) },
+  { who: 'Vice President', initials: 'VP', color: '#2a62b0', title: 'Second round', focus: 'Core technicals', tip: 'Walk through the mechanics step by step and say the numbers out loud.', pick: c => /accounting|enterprise|equity value|valuation|dcf|discounted/i.test(c.category) },
+  { who: 'Managing Director', initials: 'MD', color: '#7b61ff', title: 'Final round', focus: 'Judgment, deals and fit', tip: 'Have a view and defend it briefly. MDs listen for commercial judgment and conviction.', pick: c => /merger|lbo|restructur|distress|brain|transaction/i.test(c.category) || /why (our|this)|deal|pitch|stock|market/i.test(c.q) },
+];
+function startSuperday(el, perRound) {
+  const used = new Set(), ids = [], rounds = [];
+  const shuffle = a => a.sort(() => Math.random() - .5);
+  SUPERDAY.forEach((r, ri) => {
+    let pool = shuffle(S.cards.filter(c => r.pick(c) && !used.has(c.id)));
+    if (pool.length < perRound) pool = pool.concat(shuffle(S.cards.filter(c => !used.has(c.id) && !pool.includes(c) && (ri === 0 ? c.track === 'Behavioral' : c.track !== 'Behavioral'))));
+    if (pool.length < perRound) pool = pool.concat(shuffle(S.cards.filter(c => !used.has(c.id) && !pool.includes(c))));
+    const pickd = pool.slice(0, perRound);
+    pickd.forEach(c => used.add(c.id));
+    rounds.push({ ...r, start: ids.length, end: ids.length + pickd.length });
+    ids.push(...pickd.map(c => c.id));
+  });
+  if (!ids.length) { App.toast('Add some questions first.'); return; }
+  MOCK = { phase: 'between', kind: 'superday', rounds, ids, i: 0, answers: [], times: [], started: Date.now() };
+  Pages.mock(el);
+}
+const roundOf = (m, i) => m.rounds ? m.rounds.findIndex(r => i >= r.start && i < r.end) : -1;
+function superdayBetween(el) {
+  const m = MOCK, ri = roundOf(m, m.i), r = m.rounds[ri];
+  const lines = ['Deep breath. Your next interviewer is ready.', 'Nice work so far. Reset and go again.', 'Last one. Finish strong.'];
+  el.innerHTML = `<div class="page" style="max-width:640px"><div class="card grid" style="gap:16px;text-align:center;justify-items:center;padding:28px 20px">
+    ${boSays(ri === 0 ? 'happy' : 'cheer', h(ri === 0 ? 'Welcome to your Superday. Three interviewers, back to back. You\'ve got this.' : lines[Math.min(ri, 2)]), 76)}
+    <div class="eyebrow">Round ${ri + 1} of ${m.rounds.length}</div>
+    <div class="row" style="justify-content:center"><span class="who" style="background:${r.color}">${r.initials}</span><div style="text-align:left"><h2>${h(r.who)}</h2><div class="faint" style="font-weight:700">${h(r.title)} · ${h(r.focus)}</div></div></div>
+    <p class="muted" style="max-width:46ch">${h(r.tip)}</p>
+    <p class="faint" style="font-size:.85rem">${r.end - r.start} questions · about ${Math.round((r.end - r.start) * 2)} minutes</p>
+    <div class="row" style="justify-content:center"><button class="btn go big" id="sd-go">Start round ${ri + 1}</button><button class="btn big ghost" id="sd-quit">End Superday</button></div></div></div>`;
+  $('#sd-go', el).onclick = () => { m.phase = 'run'; Pages.mock(el); };
+  $('#sd-quit', el).onclick = () => { MOCK = null; Pages.mock(el); };
+}
 Pages.mock = el => {
+  if (MOCK && MOCK.phase === 'between') return superdayBetween(el);
   if (MOCK && MOCK.phase === 'run') return mockRun(el);
   if (MOCK && MOCK.phase === 'review') return mockReview(el);
-  el.innerHTML = `<div class="page" style="max-width:720px"><div class="hello"><div class="eyebrow">Superday simulator</div><h1>Mock interview</h1><p class="muted">Questions back to back with a two-minute clock each. Tap the speaker to hear a question. Answers appear at the end, and each question is then scheduled for review.</p></div>
-    <div class="card grid" style="gap:16px">
+  el.innerHTML = `<div class="page" style="max-width:820px"><div class="hello"><div class="eyebrow">Interview practice</div><h1>Mock interviews</h1><p class="muted">Questions back to back with a two-minute clock each. Answers appear at the end, and every question is then scheduled for review.</p></div>
+    <div class="mode-cards">
+      <button class="mode-card featured" id="sd-start"><div class="row spread"><h2>Superday</h2><span class="pill" style="color:var(--brand)">Recommended</span></div><p class="muted" style="font-size:.92rem">Three back-to-back rounds with different interviewers, like the real day.</p>
+        <div class="rounds">${SUPERDAY.map(r => `<div class="round-line"><span class="who" style="background:${r.color}">${r.initials}</span>${h(r.who)} <span class="faint" style="font-weight:600">· ${h(r.focus)}</span></div>`).join('')}</div>
+        <span class="faint" style="font-size:.85rem">12 questions · about 25 minutes</span></button>
+      <div class="mode-card" style="cursor:default"><h2>Quick mock</h2><p class="muted" style="font-size:.92rem">A short set from one track. Good for a 10-minute rep.</p>
+    <div class="grid" style="gap:12px">
       <label class="field" for="m-track">Track<select class="input" id="m-track"><option value="Mixed">Mixed</option><option value="Behavioral">Behavioral / fit</option><option value="Technical">Technical</option></select></label>
       <label class="field" for="m-count">Questions<select class="input" id="m-count"><option>5</option><option>8</option><option>12</option></select></label>
       <label class="field" for="m-pool">Pull from<select class="input" id="m-pool"><option value="all">Everything</option><option value="weak">My weakest cards</option><option value="starred">Starred only</option></select></label>
-      <button class="btn go big" id="m-go">${I.play} Start the interview</button></div></div>`;
+      <button class="btn go" id="m-go">${I.play} Start quick mock</button></div></div></div></div>`;
+  $('#sd-start', el).onclick = () => startSuperday(el, 4);
   $('#m-go', el).onclick = () => {
     const track = $('#m-track', el).value, n = +$('#m-count', el).value, pool = $('#m-pool', el).value;
     let cs = S.cards.filter(c => track === 'Mixed' || c.track === track);
@@ -24,7 +66,7 @@ function mockRun(el) {
   const m = MOCK, card = S.byId.get(m.ids[m.i]);
   const t0 = Date.now(), LIMIT = 120;
   el.innerHTML = `<div class="page" style="max-width:760px"><div class="session-top"><button class="icon-btn" id="m-quit" aria-label="End interview">${I.x}</button><div class="progress"><i style="width:${Math.round(100 * m.i / m.ids.length)}%"></i></div><span class="timer" id="m-timer" style="font-size:1.1rem">2:00</span></div>
-    <div class="card grid" style="gap:14px"><div class="row spread"><span class="eyebrow">Question ${m.i + 1} of ${m.ids.length}</span><button class="icon-btn" id="m-speak" aria-label="Read aloud">${I.speak}</button></div><div class="q-text">${h(card.q)}</div>
+    <div class="card grid" style="gap:14px"><div class="row spread"><span class="eyebrow">${m.rounds ? (() => { const ri = roundOf(m, m.i), r = m.rounds[ri]; return `Round ${ri + 1} · ${h(r.who)} · Question ${m.i - r.start + 1} of ${r.end - r.start}`; })() : `Question ${m.i + 1} of ${m.ids.length}`}</span><button class="icon-btn" id="m-speak" aria-label="Read aloud">${I.speak}</button></div><div class="q-text">${h(card.q)}</div>
       <div class="pad"><div class="fw" style="padding-bottom:0"><span class="fw-label">${h(frameworkFor(card).name)}</span>${frameworkFor(card).steps.map(x => `<button type="button" class="fw-chip" data-fw="${h(x)}">${h(x)}</button>`).join('')}</div><textarea id="m-ans" style="min-height:200px" placeholder="Answer the way you would say it to the interviewer." aria-label="Your answer"></textarea></div>
       <div class="row spread"><span class="faint" style="font-size:.82rem">Tip: on a Mac, press Fn twice to dictate your answer.</span><button class="btn go" id="m-next">${m.i + 1 === m.ids.length ? 'Finish' : 'Next question'}</button></div></div></div>`;
   const ta = $('#m-ans', el); ta.focus({ preventScroll: true });
@@ -42,6 +84,7 @@ function mockRun(el) {
     clearInterval(timer);
     m.answers[m.i] = ta.value; m.times[m.i] = Date.now() - t0; m.i++;
     if (m.i >= m.ids.length) { m.phase = 'review'; m.r = 0; }
+    else if (m.rounds && roundOf(m, m.i) !== roundOf(m, m.i - 1)) m.phase = 'between';
     Pages.mock(el);
   };
 }
@@ -59,10 +102,13 @@ function mockReview(el) {
     const avgCov = answered.length ? Math.round(answered.reduce((t, x) => t + x.cov, 0) / answered.length) : null;
     const avgSecs = Math.round(rows.reduce((t, x) => t + x.secs, 0) / n);
     const pct = good / n;
-    Telemetry.track('mock_complete', { questions: n, good });
-    const head = pct >= 0.8 ? 'Strong performance.' : pct >= 0.5 ? 'Solid, with a few to tighten.' : 'Worth another pass on these.';
+    const sd = m.rounds;
+    Telemetry.track(sd ? 'superday_complete' : 'mock_complete', { questions: n, good });
+    const head = sd ? (pct >= 0.75 ? 'Superday ready.' : pct >= 0.5 ? 'Close. Tighten a few areas.' : 'More reps before the real thing.') : pct >= 0.8 ? 'Strong performance.' : pct >= 0.5 ? 'Solid, with a few to tighten.' : 'Worth another pass on these.';
+    const roundRows = sd ? sd.map(r => { const rr = rows.slice(r.start, r.end); return { r, good: rr.filter(x => x.r >= 3).length, n: rr.length }; }) : [];
     MOCK = null;
-    el.innerHTML = `<div class="page" style="max-width:820px"><div class="card done-hero">${boSays(pct >= 0.5 ? 'cheer' : 'gentle', h(pct >= 0.5 ? 'Nice work in the room. Review the misses and run it again soon.' : 'Tough set. Review these and they\'ll come back easier.'), 96)}<div class="eyebrow">Mock interview complete</div><div class="big-num">${good} of ${n}</div><h1>${head}</h1><p class="muted">Answered well, based on your own ratings. Every question is now on your review schedule.</p>
+    el.innerHTML = `<div class="page" style="max-width:820px"><div class="card done-hero">${boSays(pct >= 0.5 ? 'cheer' : 'gentle', h(pct >= 0.5 ? 'Nice work in the room. Review the misses and run it again soon.' : 'Tough set. Review these and they\'ll come back easier.'), 96)}<div class="eyebrow">${sd ? 'Superday complete' : 'Mock interview complete'}</div><div class="big-num">${good} of ${n}</div><h1>${head}</h1><p class="muted">Answered well, based on your own ratings. Every question is now on your review schedule.</p>
+      ${sd ? `<div class="grid" style="gap:8px;width:100%;max-width:520px">${roundRows.map(x => `<div class="round-line" style="justify-content:space-between;background:var(--layer);border-radius:12px;padding:8px 12px"><span class="row" style="gap:10px"><span class="who" style="background:${x.r.color}">${x.r.initials}</span>${h(x.r.who)}</span><span class="num" style="color:var(--${x.good / x.n >= 0.75 ? 'gotit' : x.good / x.n >= 0.5 ? 'shaky' : 'again'})">${x.good} of ${x.n}</span></div>`).join('')}</div>` : ''}
       <div class="ticker" style="width:100%"><div class="tick"><b>${Math.round(pct * 100)}%</b><span>rated Good or Easy</span></div><div class="tick"><b>${avgCov == null ? '–' : avgCov + '%'}</b><span>key points covered</span></div><div class="tick"><b>${Math.floor(avgSecs / 60)}:${String(avgSecs % 60).padStart(2, '0')}</b><span>avg time per answer</span></div></div>
       <div class="row" style="justify-content:center"><a class="btn go" href="#mock">Run another</a><a class="btn" href="#today">Done</a></div></div>
       <div class="table-wrap"><table class="tbl"><thead><tr><th>Question</th><th>Your rating</th><th>Key points</th><th>Time</th></tr></thead><tbody>${rows.map(x => `<tr><td><a class="q-link" style="-webkit-line-clamp:2;min-width:220px" href="#p-${x.card.id}">${h(x.card.q)}</a></td><td style="font-weight:600;color:var(--${['ink-3', 'again', 'shaky', 'gotit', 'ez'][x.r]})">${RATE_LABELS[x.r] || '–'}</td><td class="num faint">${x.cov == null ? 'no answer' : x.cov + '%'}</td><td class="num faint">${x.secs}s</td></tr>`).join('')}</tbody></table></div>
@@ -286,7 +332,7 @@ function drawAdmin(box) {
   box.querySelectorAll('[data-sort]').forEach(b => b.onclick = () => { if (ADMIN.sort === b.dataset.sort) ADMIN.dir *= -1; else { ADMIN.sort = b.dataset.sort; ADMIN.dir = -1; } drawAdmin(box); });
   box.querySelectorAll('.ad-row').forEach(tr => { const go = () => location.hash = 'a-' + tr.dataset.uid; tr.onclick = go; tr.onkeydown = e => { if (e.key === 'Enter') go(); }; });
 }
-const EVENT_NAMES = { app_open: 'App opened', sign_up: 'Signed up', sign_in: 'Signed in', session_complete: 'Session completed', mock_complete: 'Mock interview completed', import: 'Deck imported', bank_tag: 'Bank tagged', install_click: 'Install clicked' };
+const EVENT_NAMES = { app_open: 'App opened', sign_up: 'Signed up', sign_in: 'Signed in', session_complete: 'Session completed', mock_complete: 'Mock interview completed', superday_complete: 'Superday completed', import: 'Deck imported', bank_tag: 'Bank tagged', install_click: 'Install clicked', invite_share: 'Invite link shared', referral_joined: 'Joined from an invite', challenge_created: 'Challenge created', challenge_share: 'Challenge shared', challenge_complete: 'Challenge completed' };
 async function drawActivity(box) {
   let days, counts;
   try { [days, counts] = await Promise.all([Store.adminActivity(14), Store.adminEventCounts(7)]); }
@@ -353,8 +399,8 @@ function route() {
   const hash = location.hash.slice(1) || 'today';
   const main = $('#view');
   if (!S.ready) return;
-  const [page, id] = hash.startsWith('p-') ? ['problem', hash.slice(2)] : hash.startsWith('a-') ? ['adminStudent', hash.slice(2)] : [hash, null];
-  const navKey = page === 'problem' ? 'problems' : page === 'session' ? 'today' : page === 'adminStudent' ? 'admin' : page;
+  const [page, id] = hash.startsWith('p-') ? ['problem', hash.slice(2)] : hash.startsWith('a-') ? ['adminStudent', hash.slice(2)] : hash.startsWith('ch-') ? ['challenge', hash.slice(3)] : [hash, null];
+  const navKey = page === 'problem' ? 'problems' : page === 'session' ? 'today' : page === 'adminStudent' ? 'admin' : page === 'challenge' ? 'friends' : page;
   document.querySelectorAll('.nav-link').forEach(a => a.toggleAttribute('aria-current', a.dataset.nav === navKey) || (a.dataset.nav === navKey && a.setAttribute('aria-current', 'page')));
   document.querySelectorAll('.nav-link').forEach(a => { if (a.dataset.nav === navKey) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   if (page !== 'session' && SESSION && SESSION.rated) { finishSessionBonus(); SESSION = null; }
@@ -386,6 +432,7 @@ async function boot() {
   try { await loadData(); }
   catch (e) { $('#view').innerHTML = `<div class="page"><div class="card empty"><h2>Couldn't load your progress</h2><p class="muted">Check your connection, then reload the page.</p></div></div>`; return; }
   Telemetry.track('app_open', { installed: isStandalone(), phone: matchMedia('(max-width: 900px)').matches });
+  await Friends.afterSignIn();
   S.isAdmin = await Store.isAdmin();
   if (S.isAdmin) { $('#navlinks').insertAdjacentHTML('beforeend', `<a class="nav-link" href="#admin" data-nav="admin">${I.mock}<span>Admin</span></a>`); }
   const n = S.profile.name || S.viewer || '';
@@ -398,7 +445,7 @@ function authScreen() {
   let googleOn = false;
   return new Promise(resolve => {
     Store.googleEnabled().then(on => { googleOn = on; if (on && $('#a-google')) { $('#a-google').hidden = false; $('#a-google-btn').onclick = async () => { try { await Store.signInGoogle(); } catch (err) { draw(err.message || 'Google sign-in is not available right now.'); } }; } });
-    let modeSU = false;
+    let modeSU = !!(Store.lsGet('pendingRef') || Store.lsGet('pendingChallenge'));
     const keep = { email: '', name: '' };
     const draw = (msg = '', kind = '') => {
       const em0 = $('#a-email'), nm0 = $('#a-name');
@@ -409,6 +456,7 @@ function authScreen() {
           ${modeSU ? `<label class="field" for="a-name">Name<input class="input" id="a-name" autocomplete="name" required value="${h(keep.name)}"></label>` : ''}
           <label class="field" for="a-email">Email<input class="input" id="a-email" type="email" autocomplete="email" required value="${h(keep.email)}"></label>
           <label class="field" for="a-pass">Password<input class="input" id="a-pass" type="password" autocomplete="${modeSU ? 'new-password' : 'current-password'}" minlength="6" required></label>
+          ${Friends.authNote() && !msg ? `<div class="banner" style="font-size:.88rem">${h(Friends.authNote())}</div>` : ''}
           ${msg ? `<div class="${kind === 'ok' ? 'card' : 'banner'}" style="font-size:.88rem">${h(msg)}</div>` : ''}
           <button class="btn go big" type="submit">${modeSU ? 'Create account' : 'Sign in'}</button>
           ${modeSU ? '' : '<button class="btn ghost sm" type="button" id="a-forgot">Forgot password?</button>'}

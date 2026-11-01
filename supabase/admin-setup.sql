@@ -177,6 +177,60 @@ grant execute on function public.admin_activity(int) to authenticated;
 grant execute on function public.admin_event_counts(int) to authenticated;
 grant execute on function public.admin_recent_errors(int) to authenticated;
 
+-- ===== Friends: invite links and challenges =====
+create or replace function public.my_invite_code()
+returns text language sql stable as $$ select left(replace(auth.uid()::text, '-', ''), 10) $$;
+grant execute on function public.my_invite_code() to authenticated;
+
+create table if not exists public.referrals (
+  invitee uuid primary key default auth.uid() references auth.users(id) on delete cascade,
+  inviter_code text not null check (char_length(inviter_code) = 10),
+  invitee_name text check (char_length(invitee_name) <= 80),
+  created_at timestamptz not null default now()
+);
+alter table public.referrals enable row level security;
+drop policy if exists "Users record who invited them" on public.referrals;
+drop policy if exists "Inviters see who joined" on public.referrals;
+create policy "Users record who invited them" on public.referrals for insert to authenticated
+  with check ((select auth.uid()) = invitee and inviter_code <> public.my_invite_code());
+create policy "Inviters see who joined" on public.referrals for select to authenticated
+  using (inviter_code = public.my_invite_code() or invitee = (select auth.uid()));
+grant select, insert on public.referrals to authenticated;
+
+create table if not exists public.challenges (
+  id text primary key check (char_length(id) between 8 and 20),
+  creator uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  creator_name text check (char_length(creator_name) <= 80),
+  title text check (char_length(title) <= 120),
+  questions jsonb not null check (jsonb_typeof(questions) = 'array' and jsonb_array_length(questions) between 1 and 12 and pg_column_size(questions) < 60000),
+  created_at timestamptz not null default now()
+);
+alter table public.challenges enable row level security;
+drop policy if exists "Signed-in users open challenges" on public.challenges;
+drop policy if exists "Users create their own challenges" on public.challenges;
+create policy "Signed-in users open challenges" on public.challenges for select to authenticated using (true);
+create policy "Users create their own challenges" on public.challenges for insert to authenticated with check ((select auth.uid()) = creator);
+grant select, insert on public.challenges to authenticated;
+
+create table if not exists public.challenge_results (
+  challenge_id text not null references public.challenges(id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  name text check (char_length(name) <= 80),
+  score int not null check (score >= 0),
+  total int not null check (total > 0),
+  seconds int not null default 0,
+  created_at timestamptz not null default now(),
+  primary key (challenge_id, user_id)
+);
+alter table public.challenge_results enable row level security;
+drop policy if exists "Signed-in users see challenge results" on public.challenge_results;
+drop policy if exists "Users post their own result" on public.challenge_results;
+drop policy if exists "Users update their own result" on public.challenge_results;
+create policy "Signed-in users see challenge results" on public.challenge_results for select to authenticated using (true);
+create policy "Users post their own result" on public.challenge_results for insert to authenticated with check ((select auth.uid()) = user_id);
+create policy "Users update their own result" on public.challenge_results for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+grant select, insert, update on public.challenge_results to authenticated;
+
 -- Make yourself an admin. Replace the email, then run this line (sign up in the app first).
 insert into public.app_admins (user_id)
 select id from auth.users where email = 'YOUR_EMAIL_HERE'
